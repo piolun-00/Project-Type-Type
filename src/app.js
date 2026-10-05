@@ -32,6 +32,7 @@ const state = {
   hash: '',
   showC: true, showO: false,
 };
+const GRID_BASE = 76;      // bazowa wielkość komórki, od której liczymy liczbę kolumn
 const cache = new Map();   // klucz → analiza
 const CACHE_MAX = 4000, CACHE_DROP = 1000;
 let detKey = '';
@@ -425,7 +426,7 @@ function glyphItems(){
   const max = Math.min(f.glyphs.length, 800);
   // kolumny liczone od bazowej wielkości komórki: powiększenie nie przestawia siatki, tylko ją skaluje
   const cellPx = state.gzoom, avail = Math.max(300, $('sheet').parentElement.clientWidth - 128);
-  const cols = Math.max(4, Math.floor(avail / Math.min(cellPx, 76)));
+  const cols = Math.max(4, Math.floor(avail / GRID_BASE));   // stała liczba kolumn: powiększenie tylko skaluje
   const cell = upm * 1.25;
   for (let i=0;i<max;i++){
     const g = f.glyphs.get(i); const c = i % cols, r = Math.floor(i / cols);
@@ -546,7 +547,7 @@ function renderEdit(rp, counts){
   const glyphSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.floor(box.w * px)}" height="${Math.floor(box.h * px)}" viewBox="${box.x.toFixed(1)} ${box.y.toFixed(1)} ${box.w.toFixed(1)} ${box.h.toFixed(1)}" role="img" aria-label="Edytowany glif">`
     + gridSvg + `<g class="glyph">${paths}</g>` + (state.showO ? `<g class="orig">${origs}</g>` : '') + `<g>${marks}</g></svg>`;
   const tip = contour
-    ? (state.vsel.length ? `<b>Przeciągnij</b> węzeł lub uchwyt, strzałki przesuwają, Alt rozrywa uchwyty, Backspace usuwa.`
+    ? (state.vsel.length ? `<b>Przeciągnij</b> węzeł lub uchwyt, Shift trzyma ruch w pionie, poziomie lub pod 45°, Alt rozrywa uchwyty, Backspace usuwa.`
                          : `<b>Kliknij węzeł</b>, żeby go zaznaczyć; dwuklik na linii dodaje węzeł.`)
     : state.sel.length
     ? `<b>Zaznaczone</b> — ustaw narożnik w panelu po lewej; Shift + klik dodaje kolejne.`
@@ -1042,6 +1043,15 @@ function applyMove(cons, base, dx, dy, alt){
   }
 }
 let vdrag = null;
+// Shift przy przeciąganiu: trzymaj ruch w poziomie, w pionie albo dokładnie pod 45°.
+// Próg to tan(67,5°) — granica między „bliżej osi” a „bliżej przekątnej”.
+function constrain45(dx, dy){
+  const ax = Math.abs(dx), ay = Math.abs(dy), T = 2.4142;
+  if (ax > ay * T) return [dx, 0];
+  if (ay > ax * T) return [0, dy];
+  const m = Math.round((ax + ay) / 2);
+  return [Math.sign(dx) * m, Math.sign(dy) * m];
+}
 function toFont(e){
   const svg = document.querySelector('.edit-main svg'); if (!svg) return null;
   const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(svg.getScreenCTM().inverse());
@@ -1059,7 +1069,8 @@ function vectorDown(e, key){
 function vectorMove(e){
   if (!vdrag || e.pointerId !== vdrag.id) return false;
   const p = toFont(e); if (!p || !vdrag.start) return true;
-  const dx = Math.round(p.x - vdrag.start.x), dy = Math.round(p.y - vdrag.start.y);
+  let dx = Math.round(p.x - vdrag.start.x), dy = Math.round(p.y - vdrag.start.y);
+  if (e.shiftKey) [dx, dy] = constrain45(dx, dy);
   if (!vdrag.moved) { if (Math.abs(dx) + Math.abs(dy) < 1) return true; hist.t = 0; checkpoint(); vdrag.moved = true; }
   const cons = clone(vdrag.base); applyMove(cons, vdrag.base, dx, dy, e.altKey); writeCons(cons);
   for (const c of vdrag.corr) { c.q.x = c.x + dx; c.q.y = c.y + dy; }
@@ -1210,14 +1221,27 @@ function zoomCfg(){
 }
 // powiększenie z zachowaniem punktu pod kursorem (cx, cy względem obszaru podglądu)
 function scroller(){ return (state.mode === 'font' && state.view === 'edit' && document.querySelector('.edit-main')) || document.querySelector('.stage'); }
+let zq = null;
+// wartość powiększenia z uwzględnieniem gestu, który czeka na przerysowanie
+const curZoom = () => (zq ? zq.v : zoomCfg().get());
 function zoomTo(v, cx, cy){
+  const z = zoomCfg();
+  v = Math.max(z.min, Math.min(z.max, v));
+  if (v === curZoom()) return;
+  if (zq) { zq.v = v; if (cx != null) { zq.cx = cx; zq.cy = cy; } return; }
+  const st = scroller();
+  zq = { v, cx, cy, old: z.get(), sl: st.scrollLeft, stp: st.scrollTop };
+  requestAnimationFrame(applyZoom);
+}
+function applyZoom(){
+  const q = zq; zq = null; if (!q) return;
   const z = zoomCfg(), st = scroller();
-  const old = z.get(); v = Math.max(z.min, Math.min(z.max, v)); if (v === old) return;
-  const r = v / old, sl = st.scrollLeft, stp = st.scrollTop;
+  let { cx, cy } = q;
   if (cx == null) { cx = st.clientWidth / 2; cy = st.clientHeight / 2; }
-  z.set(v); $('size').value = v; render();
+  const r = q.v / q.old;
+  z.set(q.v); $('size').value = q.v; render();
   const sc = scroller();
-  sc.scrollLeft = (sl + cx) * r - cx; sc.scrollTop = (stp + cy) * r - cy;
+  sc.scrollLeft = (q.sl + cx) * r - cx; sc.scrollTop = (q.stp + cy) * r - cy;
 }
 $('size').addEventListener('input', e => zoomTo(+e.target.value));
 (() => {
@@ -1242,7 +1266,7 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
     sc.scrollLeft -= now.mid.x - pinch.mid.x;  // przesuwanie dwoma palcami
     sc.scrollTop -= now.mid.y - pinch.mid.y;
     const r = scroller().getBoundingClientRect();
-    zoomTo(Math.round(zoomCfg().get() * now.dist / pinch.dist), now.mid.x - r.left, now.mid.y - r.top);
+    zoomTo(Math.round(curZoom() * now.dist / pinch.dist), now.mid.x - r.left, now.mid.y - r.top);
     pinch = pinchState();                      // odczyt po zmianie powiększenia
   };
   st.addEventListener('pointerdown', e => {
@@ -1306,7 +1330,7 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
     }
     e.preventDefault();
     const r = sc.getBoundingClientRect();
-    zoomTo(Math.round(zoomCfg().get() * Math.exp(-e.deltaY * 0.0025)), e.clientX - r.left, e.clientY - r.top);
+    zoomTo(Math.round(curZoom() * Math.exp(-e.deltaY * 0.0025)), e.clientX - r.left, e.clientY - r.top);
   }, { passive: false });
 })();
 function fitText(){ const t = $('text'); t.style.height = 'auto'; t.style.height = Math.min(120, Math.max(36, t.scrollHeight)) + 'px'; }
@@ -1408,8 +1432,8 @@ document.addEventListener('keydown', e => {
   if (state.mode !== 'font' || state.view !== 'edit' || typing) return;
   if (e.key === ' ' && !e.repeat) { e.preventDefault(); state.spacePan = true; document.querySelector('.stage').classList.add('space'); return; }
   if (e.key === ' ') { e.preventDefault(); return; }
-  if (!mod && (e.key === '+' || e.key === '=')) { e.preventDefault(); zoomTo(Math.round(state.ezoom * 1.25)); return; }
-  if (!mod && (e.key === '-' || e.key === '_')) { e.preventDefault(); zoomTo(Math.round(state.ezoom / 1.25)); return; }
+  if (!mod && (e.key === '+' || e.key === '=')) { e.preventDefault(); zoomTo(Math.round(curZoom() * 1.25)); return; }
+  if (!mod && (e.key === '-' || e.key === '_')) { e.preventDefault(); zoomTo(Math.round(curZoom() / 1.25)); return; }
   if (!mod && e.key === '0') { e.preventDefault(); zoomTo(100); return; }
   if (state.vmode === 'contour') {
     const step = e.shiftKey ? 10 : 1;
