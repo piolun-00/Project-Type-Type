@@ -1,0 +1,59 @@
+# Przy każdej zmianie na gałęzi main: uruchom testy, a jeśli przejdą — opublikuj stronę na GitHub Pages.
+name: Testy i publikacja
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Instalacja narzędzi testowych
+        run: |
+          npm install --no-audit --no-fund
+          pip install opentype-sanitizer
+      - name: Testy silnika i eksportu
+        run: npm test
+      - name: Walidacja plików fontów (OTS — ten sam walidator co w Chrome i Firefoksie)
+        run: |
+          python -m ots tests/out/test-rounded.otf
+          python -m ots tests/out/test-vf.ttf
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Przygotowanie plików strony
+        run: |
+          mkdir _site
+          cp -r index.html zasady.html styles.css src vendor THIRD_PARTY_NOTICES.txt _site/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

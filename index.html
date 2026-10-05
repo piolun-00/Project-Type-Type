@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Szlifiernia — zaokrąglanie narożników fontów i SVG</title>
+<meta name="description" content="Narzędzie do zaokrąglania narożników fontów i plików SVG. Działa w całości w przeglądarce — pliki nie są nigdzie wysyłane.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E%F0%9F%AA%A8%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+
+</head>
+<body>
+<div class="app">
+  <aside class="rail">
+    <div class="brand"><h1>Szlifiernia</h1><span>v0.13</span></div>
+    <section id="nodePanel" hidden>
+      <h2 id="npTitle">Glif</h2>
+      <div id="vPanel" hidden>
+        <p class="hint" id="vHint" style="margin-top:0"></p>
+        <div id="vCoords" class="np-row" hidden>
+          <span class="lbl">Położenie węzła (jednostki fontu)</span>
+          <div class="btn-row"><label class="toggle" style="color:var(--ink)">X <input class="num" id="vX" type="number" step="1"></label>
+          <label class="toggle" style="color:var(--ink)">Y <input class="num" id="vY" type="number" step="1"></label></div>
+        </div>
+        <div class="btn-row" id="vBtns" style="margin-bottom:12px" hidden>
+          <button class="btn" id="vSmooth">Wygładź</button>
+          <button class="btn" id="vSharp">Wyprostuj</button>
+          <button class="btn" id="vDel">Usuń węzeł</button>
+        </div>
+        <button class="linkbtn" id="vReset">Przywróć oryginalny kontur</button>
+      </div>
+      <div id="cPanel">
+      <div class="ctrl small" style="--c:var(--ink)">
+        <div class="ctrl-head"><label for="s-gscale">Cały glif (% ustawień globalnych)</label><input class="num" id="n-gscale" type="number" min="0" max="200" step="1"></div>
+        <input type="range" id="s-gscale" min="0" max="200" step="1">
+      </div>
+      <p class="hint" id="npHint"></p>
+      <div id="npCtrls" hidden>
+        <div class="np-row"><span class="lbl">Typ narożnika</span>
+          <div class="seg wrap small" id="npType" role="group" aria-label="Typ narożnika">
+            <button data-v="auto">Auto</button><button data-v="end">Zakończenie</button><button data-v="out">Zewnętrzny</button><button data-v="in">Wewnętrzny</button><button data-v="off">Ostry</button>
+          </div></div>
+        <div class="np-row"><span class="lbl">Siła</span>
+          <div class="seg small" id="npMode" role="group" aria-label="Rodzaj siły">
+            <button data-v="rel">Względna</button><button data-v="abs">Zamrożona</button>
+          </div></div>
+        <div class="ctrl small" style="--c:var(--ink)">
+          <div class="ctrl-head"><label for="s-namt" id="npAmtLabel">% suwaka globalnego</label><input class="num" id="n-namt" type="number" min="0" max="200" step="1"></div>
+          <input type="range" id="s-namt" min="0" max="200" step="1">
+        </div>
+        <div class="np-row"><span class="lbl">Wtapianie kikutów przy tym narożniku</span>
+          <div class="seg small" id="npAbsorb" role="group" aria-label="Wtapianie">
+            <button data-v="auto">Auto</button><button data-v="on">Wymuś</button><button data-v="off">Blokuj</button>
+          </div></div>
+      </div>
+      <div class="btn-row" style="margin-bottom:10px">
+        <button class="btn" id="npForce" hidden>Wymuś narożnik</button>
+        <button class="linkbtn" id="npReset" hidden>Przywróć zaznaczone</button>
+      </div>
+      <div class="msg" id="npOrphans"></div>
+      <button class="linkbtn" id="npResetGlyph">Przywróć cały glif</button>
+      </div>
+      <div id="npListWrap" style="margin-top:14px" hidden><span class="lbl" style="display:block; font-size:12.5px; color:var(--muted); margin-bottom:6px">Glify z korektami</span><div class="chips" id="npList"></div></div>
+    </section>
+
+
+    <section>
+      <h2>Plik</h2>
+      <label class="license"><input type="checkbox" id="lic"><span>Mam licencję lub prawa do modyfikacji pliku, który wgrywam.</span></label>
+      <div class="drop locked" id="drop" tabindex="0" role="button" aria-disabled="true">
+        <strong>Wgraj font lub SVG</strong>
+        <span id="dropHint">Najpierw zaznacz potwierdzenie licencji.</span>
+      </div>
+      <input type="file" id="file" accept=".ttf,.otf,.woff,.svg,font/ttf,font/otf,font/woff,image/svg+xml" hidden>
+      <div class="file-info" id="fileInfo">Teraz: <b>kształty demo</b></div>
+      <div class="msg" id="msg"></div>
+      <div class="restore" id="restore" hidden></div>
+      <p class="hint">Pliki zostają w twojej przeglądarce — nic nie jest wysyłane. <a href="zasady.html" style="color:inherit">Zasady korzystania</a></p>
+    </section>
+
+    <section>
+      <h2>Zaokrąglenie</h2>
+      <div class="ctrl" style="--c:var(--end)">
+        <div class="ctrl-head"><label for="s-end"><span class="dot"></span>Zakończenia</label><input class="num" id="n-end" type="number" min="0" max="100" step="1" aria-label="Zakończenia, wartość"></div>
+        <input type="range" id="s-end" min="0" max="100" step="1">
+      </div>
+      <div class="ctrl" style="--c:var(--out)">
+        <div class="ctrl-head"><label for="s-out"><span class="dot"></span>Narożniki zewnętrzne</label><input class="num" id="n-out" type="number" min="0" max="100" step="1" aria-label="Narożniki zewnętrzne, wartość"></div>
+        <input type="range" id="s-out" min="0" max="100" step="1">
+      </div>
+      <div class="ctrl" style="--c:var(--in)">
+        <div class="ctrl-head"><label for="s-in"><span class="dot"></span>Narożniki wewnętrzne</label><input class="num" id="n-in" type="number" min="0" max="100" step="1" aria-label="Narożniki wewnętrzne, wartość"></div>
+        <input type="range" id="s-in" min="0" max="100" step="1">
+      </div>
+      <button class="linkbtn" id="reset">Wyzeruj</button>
+    </section>
+
+    <section>
+      <details id="adv">
+        <summary>Precyzja</summary>
+        <label class="toggle" style="margin-bottom:14px; color:var(--ink)"><input type="checkbox" id="union" checked> Łącz nachodzące kontury</label>
+        <p class="hint" style="margin:-8px 0 14px">Scala ogonki ą, ę i kreskę Ł z literą, żeby miejsca styku też się zaokrąglały.</p>
+        <div class="ctrl small" style="--c:var(--ink)">
+          <div class="ctrl-head"><label for="s-merge">Scalanie bliskich punktów (% em)</label><input class="num" id="n-merge" type="number" min="0" max="4" step="0.1"></div>
+          <input type="range" id="s-merge" min="0" max="4" step="0.1">
+        </div>
+        <p class="hint" style="margin:-6px 0 14px">Odcinki krótsze niż ten próg traktuję jak jeden narożnik (podwójne wektory, szum).</p>
+        <div class="ctrl small" style="--c:var(--ink)">
+          <div class="ctrl-head"><label for="s-absorb">Wtapianie krótkich kikutów (% em)</label><input class="num" id="n-absorb" type="number" min="0" max="40" step="0.5"></div>
+          <input type="range" id="s-absorb" min="0" max="40" step="0.5">
+        </div>
+        <p class="hint" style="margin:-6px 0 14px">Jeśli między dwoma łukami jest odcinek krótszy niż ten próg i łuki się nie mieszczą, prowadzę przez niego jedną płynną krzywą zamiast ściskać oba łuki. 0 wyłącza.</p>
+        <div class="stroke-row"><span>Grubość kreski (wykryta: <b id="strokeAuto">–</b>)</span><input class="num" id="strokeOv" type="number" min="1" step="1" placeholder="auto" aria-label="Ręczna grubość kreski"></div>
+        <div class="ctrl small" style="--c:var(--out)">
+          <div class="ctrl-head"><label for="s-kOut">Promień zewnętrzny × kreska</label><input class="num" id="n-kOut" type="number" min="0.1" max="3" step="0.05"></div>
+          <input type="range" id="s-kOut" min="0.1" max="3" step="0.05">
+        </div>
+        <div class="ctrl small" style="--c:var(--in)">
+          <div class="ctrl-head"><label for="s-kIn">Promień wewnętrzny × kreska</label><input class="num" id="n-kIn" type="number" min="0.1" max="3" step="0.05"></div>
+          <input type="range" id="s-kIn" min="0.1" max="3" step="0.05">
+        </div>
+        <div class="ctrl small" style="--c:var(--ink)">
+          <div class="ctrl-head"><label for="s-tanMax">Rozlanie w ostrych kątach</label><input class="num" id="n-tanMax" type="number" min="1" max="10" step="0.5"></div>
+          <input type="range" id="s-tanMax" min="1" max="10" step="0.5">
+        </div>
+        <div class="ctrl small" style="--c:var(--ink)">
+          <div class="ctrl-head"><label for="s-tension">Napięcie łuku</label><input class="num" id="n-tension" type="number" min="0.4" max="1.8" step="0.05"></div>
+          <input type="range" id="s-tension" min="0.4" max="1.8" step="0.05">
+        </div>
+        <div class="ctrl small" style="--c:var(--faint)">
+          <div class="ctrl-head"><label for="s-angleMin">Próg narożnika (°)</label><input class="num" id="n-angleMin" type="number" min="3" max="60" step="1"></div>
+          <input type="range" id="s-angleMin" min="3" max="60" step="1">
+        </div>
+        <div class="ctrl small" style="--c:var(--end)">
+          <div class="ctrl-head"><label for="s-endTol">Tolerancja zakończeń (°)</label><input class="num" id="n-endTol" type="number" min="0" max="45" step="1"></div>
+          <input type="range" id="s-endTol" min="0" max="45" step="1">
+        </div>
+        <div class="ctrl small" style="--c:var(--end)">
+          <div class="ctrl-head"><label for="s-endMax">Maks. szerokość zakończenia (% em)</label><input class="num" id="n-endMax" type="number" min="2" max="80" step="1"></div>
+          <input type="range" id="s-endMax" min="2" max="80" step="1">
+        </div>
+        <p class="hint">Promienie liczone są względem grubości kreski, więc te same ustawienia działają na różnych krojach i gramaturach.</p>
+      </details>
+    </section>
+
+    <section>
+      <h2>Eksport</h2>
+      <div id="fontExport" hidden>
+        <input class="field" id="famName" type="text" aria-label="Nazwa rodziny nowego fontu" placeholder="Nazwa rodziny">
+        <div class="btn-row" style="margin-bottom:8px">
+          <button class="btn primary" id="expFont">Pobierz font (.otf w .zip)</button>
+          <button class="btn" id="expVF" hidden>Pobierz font zmienny (.ttf)</button>
+        </div>
+        <p class="hint" style="margin-bottom:12px">Zapisuje dokładnie to, co widzisz, razem z korektami. Kerning i funkcje OpenType są przenoszone z oryginału. Zmień nazwę rodziny, jeśli licencja wymaga tego przy modyfikacjach.</p>
+      </div>
+      <div class="btn-row"><button class="btn" id="expSvg">Pobierz SVG</button></div>
+      <div class="btn-row" style="margin-top:14px">
+        <button class="btn" id="expJson">Zapisz ustawienia (.json)</button>
+        <button class="btn" id="impJson">Wczytaj ustawienia</button>
+      </div>
+      <input type="file" id="jsonFile" accept=".json,application/json" hidden>
+      <p class="hint">Plik ustawień zawiera suwaki, Precyzję i wszystkie ręczne korekty. Praca zapisuje się też automatycznie w tej przeglądarce.</p>
+    </section>
+  </aside>
+
+  <main class="main">
+    <div class="bar">
+      <div class="seg" id="viewSeg" role="group" aria-label="Widok">
+        <button data-v="text" aria-pressed="true">Tekst</button>
+        <button data-v="glyphs" aria-pressed="false">Wszystkie glify</button>
+        <button data-v="edit" aria-pressed="false">Edycja glifu</button>
+      </div>
+      <div class="editbar" id="editBar" hidden>
+        <button class="iconbtn" id="gPrev" aria-label="Poprzedni glif">‹</button>
+        <input id="gChar" type="text" maxlength="4" aria-label="Znak do edycji" spellcheck="false">
+        <button class="iconbtn" id="gNext" aria-label="Następny glif">›</button>
+        <span class="gname" id="gName"></span>
+        <div class="seg" id="vmodeSeg" role="group" aria-label="Tryb edycji">
+          <button data-v="corners" aria-pressed="true">Narożniki</button>
+          <button data-v="contour" aria-pressed="false">Kontur</button>
+        </div>
+      </div>
+      <textarea class="textin" id="text" rows="1" aria-label="Tekst podglądu" spellcheck="false"></textarea>
+      <label class="size">Skala <input type="range" id="size" min="40" max="400" step="2" style="--c:var(--ink)"></label>
+      <label class="toggle"><input type="checkbox" id="showC" checked> Narożniki</label>
+      <label class="toggle"><input type="checkbox" id="showO"> Oryginał</label>
+      <label class="toggle" id="showGWrap" hidden><input type="checkbox" id="showG" checked> Siatka</label>
+    </div>
+    <div class="stage"><div class="sheet" id="sheet"></div></div>
+    <div class="foot">
+      <span class="count" id="count"></span>
+      <span id="note"></span>
+    </div>
+  </main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="vendor/opentype.min.js"></script>
+<script src="vendor/paper-core.min.js"></script>
+<script src="src/core.js"></script>
+<script src="src/vf.js"></script>
+<script src="src/app.js"></script>
+</body>
+</html>
