@@ -1,4 +1,4 @@
-Szlifiernia korzysta z następujących bibliotek open source, dołączonych w katalogu vendor/.
+Type Type korzysta z następujących bibliotek open source, dołączonych w katalogu vendor/.
 
 ==================================================================
 opentype.js 1.3.4 — https://github.com/opentypejs/opentype.js

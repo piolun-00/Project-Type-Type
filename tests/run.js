@@ -1,4 +1,4 @@
-/* Testy silnika Szlifierni: uruchamiane lokalnie (npm test) i automatycznie na GitHubie przy każdej zmianie.
+/* Testy silnika Type Type: uruchamiane lokalnie (npm test) i automatycznie na GitHubie przy każdej zmianie.
    Nie używają żadnych licencjonowanych fontów — font testowy jest budowany z prostych kształtów. */
 const fs = require('fs');
 const path = require('path');
@@ -74,7 +74,7 @@ for (const [ch, cmds] of shapes) {
   const p = new ot.Path(); p.commands = cmds;
   glyphs.push(new ot.Glyph({ name: ch, unicode: ch.charCodeAt(0), unicodes: [ch.charCodeAt(0)], advanceWidth: 640, path: p }));
 }
-const src = new ot.Font({ familyName: 'Szlifiernia Test', styleName: 'Regular', unitsPerEm: REF, ascender: 800, descender: -200, glyphs });
+const src = new ot.Font({ familyName: 'Type Type Test', styleName: 'Regular', unitsPerEm: REF, ascender: 800, descender: -200, glyphs });
 const srcBuf = Buffer.from(src.toArrayBuffer());
 const font = ot.parse(srcBuf.buffer.slice(srcBuf.byteOffset, srcBuf.byteOffset + srcBuf.length));
 
@@ -88,7 +88,7 @@ for (let i = 0; i < font.glyphs.length; i++) {
   }
   rounded.push(new ot.Glyph({ name: g.name, unicode: g.unicode, unicodes: g.unicodes || [], advanceWidth: g.advanceWidth, path: p }));
 }
-const outFont = new ot.Font({ familyName: 'Szlifiernia Test Rounded', styleName: 'Regular', postScriptName: 'SzlifierniaTestRounded-Regular', unitsPerEm: REF, ascender: 800, descender: -200, glyphs: rounded });
+const outFont = new ot.Font({ familyName: 'Type Type Test Rounded', styleName: 'Regular', postScriptName: 'TypeTypeTestRounded-Regular', unitsPerEm: REF, ascender: 800, descender: -200, glyphs: rounded });
 const otfBytes = Buffer.from(outFont.toArrayBuffer());
 fs.writeFileSync(path.join(outDir, 'test-rounded.otf'), otfBytes);
 const back = ot.parse(otfBytes.buffer.slice(otfBytes.byteOffset, otfBytes.byteOffset + otfBytes.length));
@@ -109,7 +109,7 @@ check('statyczny .otf: liczba glifów zachowana', back.numGlyphs === font.numGly
     glyphs: items, upm: REF, ascender: 800, descender: -200,
     axes: [{ tag: 'RNDE', name: 'Rounded Ends' }, { tag: 'RNDO', name: 'Rounded Outer' }, { tag: 'RNDI', name: 'Rounded Inner' }],
     instances: [{ name: 'Sharp', coords: [0, 0, 0] }, { name: 'Round', coords: [100, 100, 100] }],
-    names: { 1: 'Szlifiernia Test VF', 2: 'Regular', 4: 'Szlifiernia Test VF', 6: 'SzlifierniaTestVF-Regular' },
+    names: { 1: 'Type Type Test VF', 2: 'Regular', 4: 'Type Type Test VF', 6: 'TypeTypeTestVF-Regular' },
     srcTables: V.readTables(new Uint8Array(srcBuf)), srcIsVariable: false,
   });
   fs.writeFileSync(path.join(outDir, 'test-vf.ttf'), Buffer.from(res.bytes));

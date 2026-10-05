@@ -1,4 +1,4 @@
-/* Szlifiernia — interfejs aplikacji */
+/* Type Type — interfejs aplikacji */
 (function(){
 'use strict';
 const R = window.RounderCore;
@@ -33,6 +33,7 @@ const state = {
   showC: true, showO: false,
 };
 const cache = new Map();   // klucz → analiza
+const CACHE_MAX = 4000, CACHE_DROP = 1000;
 let detKey = '';
 
 /* ================= demo (oryginalne kształty) ================= */
@@ -132,17 +133,35 @@ function transformCmds(cmds, m){
     return o;
   });
 }
+// Wgrany plik trafia na chwilę do żywego DOM-u (tylko tak policzymy getScreenCTM),
+// więc najpierw wycinamy z niego wszystko, co mogłoby cokolwiek wykonać lub pobrać:
+// skrypty, atrybuty zdarzeń, odnośniki, osadzone obrazy, style i animacje.
+function sanitizeSvg(svg){
+  svg.querySelectorAll('script,foreignObject,image,style,animate,animateTransform,animateMotion,set,a,iframe,audio,video').forEach(e=>e.remove());
+  const walk = (el) => {
+    for (const at of [...el.attributes]) {
+      const n = at.name.toLowerCase();
+      if (n.startsWith('on') || n === 'href' || n === 'xlink:href' || /javascript:/i.test(at.value)) el.removeAttribute(at.name);
+    }
+    for (const ch of el.children) walk(ch);
+  };
+  walk(svg);
+  return svg;
+}
 function parseSvg(text){
   const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
   if (doc.querySelector('parsererror') || doc.documentElement.tagName.toLowerCase() !== 'svg') throw new Error('To nie jest poprawny plik SVG.');
   const host = document.createElement('div');
   host.style.cssText = 'position:fixed;left:-20000px;top:0;visibility:hidden;pointer-events:none';
-  const svg = document.importNode(doc.documentElement, true);
-  svg.querySelectorAll('script,foreignObject').forEach(e=>e.remove());
+  // czyścimy jeszcze w dokumencie z DOMParsera — przeniesienie do głównego dokumentu
+  // potrafi samo ruszyć pobieranie zasobów, więc musi być po sanityzacji
+  const svg = document.importNode(sanitizeSvg(doc.documentElement), true);
   host.appendChild(svg); document.body.appendChild(host);
-  const shapes = []; let skippedStroke = 0, skippedText = 0, skippedUse = 0, warnPaint = 0;
+  const shapes = []; let skippedStroke = 0, skippedText = 0, skippedUse = 0, warnPaint = 0, skippedHidden = 0;
   try {
-    const rootInv = svg.getScreenCTM().inverse();
+    const rootCTM = svg.getScreenCTM();
+    if (!rootCTM) throw new Error('Nie udało się odczytać układu współrzędnych pliku SVG.');
+    const rootInv = rootCTM.inverse();
     svg.querySelectorAll('path,rect,circle,ellipse,polygon,polyline,text,use').forEach(el=>{
       if (el.closest('defs,clipPath,mask,symbol,pattern,marker')) return;
       const tag = el.tagName.toLowerCase();
@@ -152,7 +171,9 @@ function parseSvg(text){
       if (cs.display === 'none') return;
       if (!cs.fill || cs.fill === 'none') { skippedStroke++; return; }
       let fill = cs.fill; if (/^url/.test(fill)) { fill = null; warnPaint++; }
-      const m = rootInv.multiply(el.getScreenCTM());
+      // element w grupie z display:none nie ma układu współrzędnych — pomijamy zamiast się wywalić
+      const ctm = el.getScreenCTM(); if (!ctm) { skippedHidden++; return; }
+      const m = rootInv.multiply(ctm);
       const cmds = transformCmds(elementCmds(el), m);
       if (cmds.length) shapes.push({ cmds, fill, rule: cs.fillRule === 'evenodd' ? 'evenodd' : 'nonzero' });
     });
@@ -162,6 +183,7 @@ function parseSvg(text){
   if (skippedStroke) notes.push(`${skippedStroke} el. bez wypełnienia (obrysy) pominięto — zamień obrys na kształt`);
   if (skippedText) notes.push(`${skippedText} el. tekstowych pominięto — zamień na krzywe`);
   if (skippedUse) notes.push(`${skippedUse} el. <use> pominięto — rozbij symbole`);
+  if (skippedHidden) notes.push(`${skippedHidden} el. ukrytych pominięto`);
   if (warnPaint) notes.push('gradienty zastąpiono jednolitym kolorem');
   return { shapes, notes };
 }
@@ -243,6 +265,9 @@ function getAnalysis(key, cmds, rule){
     const pc = prepCmds(cmds, rule);
     o.forcePts = (pc.forcePts || []).concat(force ? force.map(q => ({ x:q.x, y:q.y, a:0.5, manual:true })) : []);
     a = R.analyze(R.commandsToContours(pc, state.ref), o, state.ref);
+    // Map trzyma kolejność wstawiania, więc przy przepełnieniu wyrzucamy najstarsze wpisy.
+    // Bez tego przeciąganie węzła w edytorze konturu dokłada nową analizę co klatkę.
+    if (cache.size >= CACHE_MAX) { const it = cache.keys(); for (let i = 0; i < CACHE_DROP; i++) { const e = it.next(); if (e.done) break; cache.delete(e.value); } }
     cache.set(k, a);
   }
   return a;
@@ -256,23 +281,37 @@ const near = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) <= tolN();
 function globalVal(t){ return t === 'off' ? 0 : state.p[t] / 100; }
 function effType(n, c){ let t = n && n.type !== 'auto' ? n.type : c.type; if (t === 'end' && !(c.endLen > 0)) t = 'out'; return t; }
 // dopasowanie zapisanych korekt do narożników bieżącej analizy
-function matchOvr(key, an){
+// gv: skąd brać wartość suwaka dla danego typu. Domyślnie z interfejsu; font zmienny
+// podaje tu wartość osi, żeby korekty „względne” zmieniały się razem z osią.
+function matchOvr(key, an, gv){
   const E = state.ovr[key]; if (!E) return null;
+  const GV = gv || globalVal;
   const scale = (E.scale == null ? 100 : E.scale) / 100;
-  const res = an.map(C => C.corners.map(() => null)), orphans = [], nodeAt = an.map(C => C.corners.map(() => null));
-  for (const n of (E.nodes || [])) {
-    let best = null, bd = Infinity;
-    an.forEach((C, ci) => C.corners.forEach((c, k) => { if (!c) return; const d = Math.hypot(c.v.x - n.x, c.v.y - n.y); if (d < bd) { bd = d; best = [ci, k]; } }));
-    if (best && bd <= tolN()) nodeAt[best[0]][best[1]] = n; else orphans.push(n);
+  const res = an.map(C => C.corners.map(() => null)), nodeAt = an.map(C => C.corners.map(() => null));
+  // Każdy narożnik może dostać tylko jedną korektę: zbieramy wszystkie pary w zasięgu,
+  // sortujemy po odległości i przydzielamy zachłannie. Reszta trafia na listę osieroconych,
+  // dzięki czemu nic nie znika po cichu.
+  const nodes = E.nodes || [], pairs = [];
+  nodes.forEach((n, ni) => an.forEach((C, ci) => C.corners.forEach((c, k) => {
+    if (!c) return;
+    const d = Math.hypot(c.v.x - n.x, c.v.y - n.y);
+    if (d <= tolN()) pairs.push({ ni, ci, k, d });
+  })));
+  pairs.sort((a, b) => a.d - b.d);
+  const usedNode = new Set();
+  for (const p of pairs) {
+    if (usedNode.has(p.ni) || nodeAt[p.ci][p.k]) continue;
+    usedNode.add(p.ni); nodeAt[p.ci][p.k] = nodes[p.ni];
   }
+  const orphans = nodes.filter((n, ni) => !usedNode.has(ni));
   an.forEach((C, ci) => C.corners.forEach((c, k) => {
     if (!c) return;
     const n = nodeAt[ci][k];
     const t = effType(n, c);
     if (n) {
-      const g = n.mode === 'abs' ? n.amt / 100 : globalVal(t) * n.amt / 100 * scale;
+      const g = n.mode === 'abs' ? n.amt / 100 : GV(t) * n.amt / 100 * scale;
       res[ci][k] = { type: t, g, absorb: n.absorb !== 'auto' ? n.absorb : undefined };
-    } else if (scale !== 1) res[ci][k] = { g: globalVal(t) * scale };
+    } else if (scale !== 1) res[ci][k] = { g: GV(t) * scale };
   }));
   return { res, orphans, nodeAt };
 }
@@ -287,7 +326,7 @@ function cleanOvr(key){ if (!hasOvr(key)) delete state.ovr[key]; }
 
 /* ================= historia (cofnij / ponów) ================= */
 const hist = { undo: [], redo: [], t: 0 };
-const snapshot = () => JSON.stringify({ p: state.p, ovr: state.ovr });
+const snapshot = () => JSON.stringify({ p: state.p, ovr: state.ovr, strokeOv: state.strokeOv });
 function checkpoint(){
   const now = Date.now(), coalesce = now - hist.t < 700; hist.t = now;
   if (coalesce) return;
@@ -297,6 +336,7 @@ function checkpoint(){
 }
 function restoreSnap(s){
   const o = JSON.parse(s); state.p = Object.assign({}, DEF, o.p); state.ovr = o.ovr || {}; state.vsel = [];
+  state.strokeOv = o.strokeOv > 0 ? o.strokeOv : null; $('strokeOv').value = state.strokeOv || '';
   refreshDetection(); syncUI(); updatePanel(); schedule(); autosave();
 }
 function undo(){ if (!hist.undo.length) return; hist.redo.push(snapshot()); restoreSnap(hist.undo.pop()); hist.t = 0; toast('Cofnięto'); }
@@ -304,9 +344,10 @@ function redo(){ if (!hist.redo.length) return; hist.undo.push(snapshot()); rest
 
 /* ================= autozapis ================= */
 function hashBytes(u8){ let h = 0x811c9dc5; for (let i = 0; i < u8.length; i++) { h ^= u8[i]; h = Math.imul(h, 16777619); } return (h >>> 0).toString(16) + '-' + u8.length; }
-const LSKEY = () => 'szlifiernia:' + state.hash;
+const LSKEY = () => 'type-type:' + state.hash;
+const LSKEY_OLD = () => 'szlifiernia:' + state.hash;
 function settingsObj(){
-  return { app:'Szlifiernia', version:1, source:{ name: state.mode === 'font' ? state.fontFile : (state.svgName || ''), hash: state.hash },
+  return { app:'Type Type', version:1, source:{ name: state.mode === 'font' ? state.fontFile : (state.svgName || ''), hash: state.hash },
     p: state.p, ovr: state.ovr, union: state.union, strokeOv: state.strokeOv, famName: $('famName').value, text: state.text, saved: Date.now() };
 }
 function autosave(){
@@ -328,7 +369,7 @@ function applySettings(o, fromFile){
 function offerRestore(){
   const box = $('restore'); box.hidden = true; box.innerHTML = '';
   if (!state.hash) return;
-  let o = null; try { o = JSON.parse(localStorage.getItem(LSKEY()) || 'null'); } catch(e) {}
+  let o = null; try { o = JSON.parse(localStorage.getItem(LSKEY()) || localStorage.getItem(LSKEY_OLD()) || 'null'); } catch(e) {}
   if (!o) return;
   const n = Object.keys(o.ovr || {}).length;
   const when = new Date(o.saved || Date.now()).toLocaleString('pl-PL', { dateStyle:'short', timeStyle:'short' });
@@ -343,7 +384,6 @@ function roundParams(){
   return { end:p.end/100, out:p.out/100, in:p.in/100, rOut:p.kOut*S, rIn:p.kIn*S, tension:p.tension, tanMax:p.tanMax, absorb: p.absorb > 0, absorbMax: p.absorb/100*state.ref };
 }
 function refreshDetection(){
-  if (cache.size > 6000) cache.clear();
   // grubość kreski z przekrojów (pionowe kreski liter / wszystkie kształty SVG)
   if (!refreshDetection.strokeFor || refreshDetection.strokeFor !== state.loadId) {
     let items = [];
@@ -355,7 +395,7 @@ function refreshDetection(){
     refreshDetection.strokeFor = state.loadId;
   }
   $('strokeAuto').textContent = state.strokeAuto + ' j.';
-  detKey = [state.p.angleMin, state.p.endTol, state.p.endMax, state.p.merge, state.union ? 1 : 0, stroke()].join('|');
+  detKey = [state.p.angleMin, state.p.endTol, state.p.endMax, state.p.merge, state.union ? 1 : 0].join('|');
 }
 
 /* ================= render ================= */
@@ -445,6 +485,7 @@ function renderGrid(box, px, asc){
     s += `<line class="metric" x1="${x0}" x2="${x1}" y1="${sy}" y2="${sy}"/>`;
     s += `<text class="metric-label" x="${(x0 + 4 / px).toFixed(2)}" y="${(sy - 4 / px).toFixed(2)}" font-size="${fs.toFixed(2)}">${name} ${Math.round(v)}</text>`;
   }
+  s += `<line class="metric baseline" x1="${x0}" x2="${x1}" y1="${asc}" y2="${asc}"/>`;
   s += `<text class="metric-label" x="${(x0 + 4 / px).toFixed(2)}" y="${(asc - 4 / px).toFixed(2)}" font-size="${fs.toFixed(2)}">linia bazowa 0</text>`;
   s += `<text class="metric-label" x="${(x1 - 4 / px).toFixed(2)}" y="${(box.y + box.h - 4 / px).toFixed(2)}" font-size="${fs.toFixed(2)}" text-anchor="end">siatka ${minor} j., linie główne co ${major} j.</text>`;
   return `<g aria-hidden="true">${s}</g>`;
@@ -484,7 +525,7 @@ function renderEdit(rp, counts){
     paths += `<path${contour ? ' class="v-ghost"' : ''} d="${R.toPathData(r.cm, 0, asc, 1, true, 2)}"/>`;
     if (state.showO) origs += `<path d="${R.toPathData(g.path.commands, 0, asc, 1, true, 2)}"/>`;
   }
-  marks += `<line class="guide" x1="${box.x}" x2="${box.x + box.w}" y1="${asc}" y2="${asc}"/>`;
+  if (!state.showG) marks += `<line class="guide" x1="${box.x}" x2="${box.x + box.w}" y1="${asc}" y2="${asc}"/>`;
   marks += `<line class="guide" x1="0" x2="0" y1="${box.y}" y2="${box.y + box.h}"/><line class="guide" x1="${adv}" x2="${adv}" y1="${box.y}" y2="${box.y + box.h}"/>`;
   if (an) an.forEach((C, ci) => C.joints.forEach((J, k) => {
     const c = C.corners[k], v = J.v; if (!v) return;
@@ -501,7 +542,7 @@ function renderEdit(rp, counts){
     if (c || state.showC) marks += `<circle class="m-hit" data-node="${v.x.toFixed(2)},${v.y.toFixed(2)}" cx="${cx}" cy="${cy}" r="${hitR.toFixed(2)}"/>`;
   }));
   if (contour) marks += renderContourMarks(curCons(), asc, px);
-  const gridSvg = state.showG ? renderGrid(box, px, asc, desc) : '';
+  const gridSvg = state.showG ? renderGrid(box, px, asc) : '';
   const glyphSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.floor(box.w * px)}" height="${Math.floor(box.h * px)}" viewBox="${box.x.toFixed(1)} ${box.y.toFixed(1)} ${box.w.toFixed(1)} ${box.h.toFixed(1)}" role="img" aria-label="Edytowany glif">`
     + gridSvg + `<g class="glyph">${paths}</g>` + (state.showO ? `<g class="orig">${origs}</g>` : '') + `<g>${marks}</g></svg>`;
   const tip = contour
@@ -520,11 +561,15 @@ function render(){
   let paths = '', origs = '', marks = '', box, pxPerUnit;
   const counts = { end:0, out:0, in:0, off:0 };
   const markR = 4;
-  const addMarks = (an, tx, ty, flip, r) => {
-    for (const C of an) for (const c of C.corners) if (c) {
-      counts[c.type]++;
-      if (showC) marks += `<circle class="m-${c.type}" cx="${(tx + c.v.x).toFixed(1)}" cy="${(flip ? ty - c.v.y : ty + c.v.y).toFixed(1)}" r="${r.toFixed(2)}"/>`;
-    }
+  // typ po korekcie, nie surowy wynik wykrywania — inaczej narożnik ustawiony ręcznie
+  // na „ostry” dalej świeciłby kolorem i liczył się do statystyki
+  const addMarks = (an, M, tx, ty, flip, r) => {
+    an.forEach((C, ci) => C.corners.forEach((c, k) => {
+      if (!c) return;
+      const t = effType(M && M.nodeAt[ci][k], c);
+      counts[t] = (counts[t] || 0) + 1;
+      if (showC) marks += `<circle class="m-${t}" cx="${(tx + c.v.x).toFixed(1)}" cy="${(flip ? ty - c.v.y : ty + c.v.y).toFixed(1)}" r="${r.toFixed(2)}"/>`;
+    }));
   };
   const editing = state.mode === 'font' && state.view === 'edit';
   sheet.classList.toggle('editing', editing); sheet.parentElement.classList.toggle('edit-mode', editing);
@@ -546,10 +591,10 @@ function render(){
     });
     for (const it of L.items) {
       const g = it.g, gc = glyphCmds(g); if (!gc.length) continue;
-      const { an, cm } = roundShape('g'+g.index, gc, 'nonzero', rp);
+      const { an, M, cm } = roundShape('g'+g.index, gc, 'nonzero', rp);
       paths += `<path data-gi="${g.index}" d="${R.toPathData(cm, it.x, it.y, 1, true, 1)}"/>`;
       if (showO) origs += `<path d="${R.toPathData(g.path.commands, it.x, it.y, 1, true, 1)}"/>`;
-      addMarks(an, it.x, it.y, true, r);
+      addMarks(an, M, it.x, it.y, true, r);
     }
     $('note').textContent = state.view === 'glyphs' ? (L.truncated ? `Pokazuję pierwsze 800 z ${state.font.glyphs.length} glifów` : `${state.font.glyphs.length} glifów`)
       : (L.missing && L.missing.length ? `Tych znaków nie ma w foncie: ${L.missing.join(' ')}` : (state.font.tables.fvar ? 'Font zmienny — pracuję na instancji domyślnej' : ''));
@@ -561,11 +606,11 @@ function render(){
     pxPerUnit = Math.min(fitW / box.w, fitH / box.h) * state.zoom / 100;
     const r = markR / pxPerUnit;
     state.shapes.forEach((s, i) => {
-      const { an, cm } = roundShape('s'+i, s.cmds, s.rule, rp);
+      const { an, M, cm } = roundShape('s'+i, s.cmds, s.rule, rp);
       const fill = s.fill ? ` style="fill:${s.fill}"` : '';
       paths += `<path${fill} fill-rule="${s.rule}" d="${R.toPathData(cm, 0, 0, 1, false, 2)}"/>`;
       if (showO) origs += `<path d="${R.toPathData(s.cmds, 0, 0, 1, false, 2)}"/>`;
-      addMarks(an, 0, 0, false, r);
+      addMarks(an, M, 0, 0, false, r);
     });
     $('note').textContent = state.source === 'demo' ? 'Kształty demo — wgraj własny font lub SVG' : '';
   }
@@ -587,7 +632,8 @@ function loadDemo(){
   useShapes(shapes, 'demo', 'kształty demo');
 }
 function useShapes(shapes, source, name){
-  state.mode='svg'; state.source=source; state.shapes=shapes; state.font=null; state.view='text';
+  state.mode='svg'; state.source=source; state.shapes=shapes; state.font=null; state.view='text'; state.srcTables=null;
+  if (source === 'demo') state.hash = '';
   state.ovr = {}; state.sel = []; hist.undo.length = 0; hist.redo.length = 0;
   state.box = cmdsBox(shapes.map(s=>s.cmds)); state.ref = Math.sqrt(Math.max(1,state.box.w)*Math.max(1,state.box.h));
   state.loadId = (state.loadId||0)+1; cache.clear(); refreshDetection(); syncUI();
@@ -659,7 +705,7 @@ function exportSvg(){
     box = state.box;
     state.shapes.forEach((s,i)=>{ body += `<path fill="${s.fill||'#000'}" fill-rule="${s.rule}" d="${R.toPathData(roundShape('s'+i,s.cmds,s.rule, rp).cm,0,0,1,false,3)}"/>\n`; });
   }
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${box.x} ${box.y} ${box.w} ${box.h}">\n<!-- Szlifiernia: ${paramsNote().replace(/--/g,'–')} -->\n${body}</svg>\n`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${box.x} ${box.y} ${box.w} ${box.h}">\n<!-- Type Type: ${paramsNote().replace(/--/g,'–')} -->\n${body}</svg>\n`;
   const base = state.mode === 'font' ? (slug($('famName').value || 'font') || 'font') : (state.source === 'demo' ? 'demo' : state.svgName || 'ksztalty');
   saveFile(base + '-rounded.svg', new Blob([svg], { type: 'image/svg+xml' }));
 }
@@ -713,7 +759,7 @@ async function exportFont(){
       ascender: src.ascender, descender: src.descender, glyphs,
       copyright: nm('copyright'), trademark: nm('trademark'), designer: nm('designer'), designerURL: nm('designerURL'),
       manufacturer: nm('manufacturer'), manufacturerURL: nm('manufacturerURL'), license: nm('license'), licenseURL: nm('licenseURL'),
-      version: nm('version'), description: `Zmodyfikowano w Szlifierni na bazie: ${nm('fullName') || state.fontFile}.`,
+      version: nm('version'), description: `Zmodyfikowano w Type Type na bazie: ${nm('fullName') || state.fontFile}.`,
       weightClass: os2.usWeightClass, widthClass: os2.usWidthClass, fsSelection: os2.fsSelection
     });
     let bin = new Uint8Array(out.toArrayBuffer());
@@ -742,12 +788,17 @@ async function exportVF(){
     const glyphs = [];
     for (let i=0;i<src.glyphs.length;i++){
       const g = src.glyphs.get(i);
-      const an = glyphCmds(g).length ? getAnalysis('g'+g.index, glyphCmds(g), 'nonzero') : null;
+      const key = 'g' + g.index;
+      const an = glyphCmds(g).length ? getAnalysis(key, glyphCmds(g), 'nonzero') : null;
+      const withOvr = an && hasOvr(key);
       glyphs.push({ advance: g.advanceWidth || 0,
         master: (m) => {
           if (!an) return null;
           const base = { rOut:p.kOut*S, rIn:p.kIn*S, tension:p.tension, tanMax:p.tanMax, absorb: p.absorb > 0, absorbMax: p.absorb/100*state.ref };
-          return R.round(an, Object.assign({ end:m[0], out:m[1], in:m[2] }, base), state.ref, true, Object.assign({ end:1, out:1, in:1 }, base));
+          // korekty liczone dla wartości osi tego mistrza, nie dla suwaków z interfejsu
+          const axis = { end: m[0], out: m[1], in: m[2] };
+          const M = withOvr ? matchOvr(key, an, (t) => t === 'off' ? 0 : (axis[t] || 0)) : null;
+          return R.round(an, Object.assign({}, base, axis), state.ref, true, Object.assign({ end:1, out:1, in:1 }, base), M && M.res);
         } });
     }
     const nm = (k) => src.names[k] && (src.names[k].en || Object.values(src.names[k])[0]) || undefined;
@@ -765,9 +816,9 @@ async function exportVF(){
       glyphs, upm, ascender: src.ascender, descender: src.descender,
       axes: [{ tag:'RNDE', name:'Rounded Ends' }, { tag:'RNDO', name:'Rounded Outer' }, { tag:'RNDI', name:'Rounded Inner' }],
       instances: inst.map(x => ({ name: x[0], coords: x[1] })),
-      names: { 0: nm('copyright'), 1: family, 2: 'Regular', 3: `${ps};Szlifiernia`, 4: family, 5: 'Version 1.000', 6: ps + '-Regular',
+      names: { 0: nm('copyright'), 1: family, 2: 'Regular', 3: `${ps};TypeType`, 4: family, 5: 'Version 1.000', 6: ps + '-Regular',
         7: nm('trademark'), 8: nm('manufacturer'), 9: nm('designer'),
-        10: `Zmodyfikowano w Szlifierni na bazie: ${nm('fullName') || state.fontFile}. ${paramsNote()}`,
+        10: `Zmodyfikowano w Type Type na bazie: ${nm('fullName') || state.fontFile}. ${paramsNote()}`,
         11: nm('manufacturerURL'), 12: nm('designerURL'), 13: nm('license'), 14: nm('licenseURL'), 25: ps },
       srcTables: state.srcTables, srcIsVariable: !!src.tables.fvar,
       onProgress: async (n, t) => { btn.textContent = `Buduję mistrzów ${n}/${t}…`; await new Promise(r => setTimeout(r, 0)); }
@@ -852,7 +903,7 @@ function updatePanel(){
   $('s-gscale').value = gs; $('n-gscale').value = gs; paint($('s-gscale'));
   const sel = selectedJoints(info), corners = sel.filter(j => j.c), points = sel.filter(j => !j.c);
   $('npHint').textContent = !sel.length
-    ? 'Nic nie zaznaczono. Puste kółka na glifie to punkty, których algorytm nie uznał za narożniki — po kliknięciu możesz je wymusić.'
+    ? 'Nic nie zaznaczono. Puste kółka na glifie to punkty, których algorytm nie uznał za narożniki — po kliknięciu możesz je wymusić. Strzałki przeskakują między narożnikami.'
     : `Zaznaczone: ${corners.length ? corners.length + ' ' + (corners.length === 1 ? 'narożnik' : 'narożniki') : ''}${corners.length && points.length ? ' i ' : ''}${points.length ? points.length + ' ' + (points.length === 1 ? 'punkt bez narożnika' : 'punkty bez narożnika') : ''}.`;
   $('npCtrls').hidden = !corners.length;
   if (corners.length) {
@@ -929,7 +980,9 @@ function toNodes(cmds){
   return cons.filter(C => C.nodes.length >= 2);
 }
 function fromNodes(cons){
-  const r = (v) => Math.round(v), out = [];
+  // dwa miejsca po przecinku: edycja nie przesuwa konturu źródeł CFF, a zapis .otf
+  // i tak zaokrągla do liczb całkowitych tuż przed opentype.Path (patrz exportFont)
+  const r = (v) => Math.round(v * 100) / 100, out = [];
   for (const C of cons) {
     const N = C.nodes; if (N.length < 2) continue;
     out.push({ type: 'M', x: r(N[0].x), y: r(N[0].y) });
@@ -1137,7 +1190,11 @@ for (const k of SL) {
 }
 $('reset').addEventListener('click', () => { for (const k of ['end','out','in']) setParam(k, 0); });
 $('union').addEventListener('change', e => { state.union = e.target.checked; refreshDetection(); schedule(); updatePanel(); autosave(); });
-$('strokeOv').addEventListener('input', e => { const v = parseFloat(e.target.value); state.strokeOv = v > 0 ? v : null; refreshDetection(); schedule(); });
+$('strokeOv').addEventListener('input', e => {
+  const v = parseFloat(e.target.value), nv = v > 0 ? v : null;
+  if (state.strokeOv !== nv) checkpoint();
+  state.strokeOv = nv; refreshDetection(); schedule(); autosave();
+});
 function zoomCfg(){
   if (state.mode === 'font' && state.view === 'edit') return { min: 50, max: 2000, step: 5, get: () => state.ezoom, set: v => state.ezoom = v, label: 'Powiększenie glifu w procentach, 100 = dopasowany' };
   if (state.mode === 'font' && state.view === 'glyphs') return { min: 30, max: 900, step: 2, get: () => state.gzoom, set: v => state.gzoom = v, label: 'Wielkość komórki glifu w pikselach' };
@@ -1159,7 +1216,34 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
 (() => {
   const st = document.querySelector('.stage');
   let drag = null;
+  // --- dwa palce: szczypanie przybliża, przesuwanie dwoma palcami przewija ---
+  // Działa w każdym widoku, także w edycji glifu, gdzie jeden palec celowo nic nie robi.
+  const touches = new Map();
+  let pinch = null;
+  const pinchState = () => {
+    const p = [...touches.values()];
+    return { mid: { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2 },
+             dist: Math.max(1, Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y)) };
+  };
+  const startPinch = () => {
+    drag = null; vdrag = null;                 // dwa palce mają pierwszeństwo nad przeciąganiem
+    st.classList.remove('dragging');
+    pinch = pinchState();
+  };
+  const movePinch = () => {
+    const now = pinchState(), sc = scroller();
+    sc.scrollLeft -= now.mid.x - pinch.mid.x;  // przesuwanie dwoma palcami
+    sc.scrollTop -= now.mid.y - pinch.mid.y;
+    const r = scroller().getBoundingClientRect();
+    zoomTo(Math.round(zoomCfg().get() * now.dist / pinch.dist), now.mid.x - r.left, now.mid.y - r.top);
+    pinch = pinchState();                      // odczyt po zmianie powiększenia
+  };
   st.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'touch') {
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.size === 2) { startPinch(); return; }
+      if (touches.size > 2) return;
+    }
     if (e.button !== 0 || e.target.closest('input,textarea,button,select,a')) return;
     const vp = e.target.closest('[data-vp]');
     if (vp && !state.spacePan) { vectorDown(e, vp.dataset.vp); return; }
@@ -1177,6 +1261,11 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
     drag = { el, x: e.clientX, y: e.clientY, sl: el.scrollLeft, stp: el.scrollTop, id: e.pointerId, on: false };
   });
   st.addEventListener('pointermove', e => {
+    if (e.pointerType === 'touch' && touches.has(e.pointerId)) {
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pinch && touches.size >= 2) { e.preventDefault(); movePinch(); return; }
+    }
+    if (pinch) return;
     if (vectorMove(e)) return;
     if (!drag || e.pointerId !== drag.id) return;
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
@@ -1185,6 +1274,10 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
     drag.el.scrollLeft = drag.sl - dx; drag.el.scrollTop = drag.stp - dy;
   });
   const end = e => {
+    if (e.pointerType === 'touch') {
+      touches.delete(e.pointerId);
+      if (touches.size < 2 && pinch) { pinch = null; st.dataset.dragged = '1'; setTimeout(() => { delete st.dataset.dragged; }, 0); return; }
+    }
     if (vectorUp(e)) return;
     if (drag && e.pointerId === drag.id) {
       // po przeciągnięciu kliknięcie nie otwiera glifu
@@ -1195,9 +1288,17 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
   st.addEventListener('pointerup', end); st.addEventListener('pointercancel', end);
   // Ctrl/Cmd + kółko albo szczypanie na gładziku = powiększenie wokół kursora
   st.addEventListener('wheel', e => {
-    if (!(e.ctrlKey || e.metaKey)) return;
+    const sc = scroller();
+    if (!(e.ctrlKey || e.metaKey)) {
+      // przesuwanie dwoma palcami po gładziku: w edycji glifu przewijamy pole rysunku,
+      // bo scena ma wtedy overflow:hidden i sama by się nie przewinęła
+      if (sc !== st && !e.target.closest('.edit-sample')) {
+        e.preventDefault(); sc.scrollLeft += e.deltaX; sc.scrollTop += e.deltaY;
+      }
+      return;
+    }
     e.preventDefault();
-    const r = scroller().getBoundingClientRect();
+    const r = sc.getBoundingClientRect();
     zoomTo(Math.round(zoomCfg().get() * Math.exp(-e.deltaY * 0.0025)), e.clientX - r.left, e.clientY - r.top);
   }, { passive: false });
 })();
@@ -1311,7 +1412,9 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Escape') { state.vsel = []; updatePanel(); schedule(); return; }
   }
   if (e.key === 'Escape') { state.sel = []; updatePanel(); schedule(); }
-  else if (e.key === 'Tab' && (el === document.body || el.closest('.stage'))) { e.preventDefault(); cycleNode(e.shiftKey ? -1 : 1); }
+  // strzałki lewo/prawo przeskakują narożniki; Tab zostaje wolny, żeby dało się wyjść klawiaturą
+  else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); cycleNode(1); }
+  else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); cycleNode(-1); }
 });
 // ustawienia JSON
 $('expJson').addEventListener('click', () => {
@@ -1323,7 +1426,7 @@ $('jsonFile').addEventListener('change', async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
   try {
     const o = JSON.parse(await f.text());
-    if (!o || typeof o !== 'object' || !o.p) throw new Error('To nie jest plik ustawień Szlifierni.');
+    if (!o || typeof o !== 'object' || !o.p) throw new Error('To nie jest plik ustawień Type Type.');
     applySettings(o, true); toast('Wczytano ustawienia');
   } catch (err) { setMsg('Nie udało się wczytać ustawień: ' + (err.message || err), true); }
 });

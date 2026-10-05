@@ -9,11 +9,9 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -42,6 +40,10 @@ jobs:
     if: github.event_name != 'pull_request'
     needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -50,7 +52,7 @@ jobs:
       - name: Przygotowanie plików strony
         run: |
           mkdir _site
-          cp -r index.html zasady.html styles.css src vendor THIRD_PARTY_NOTICES.txt _site/
+          cp -r index.html zasady.html styles.css src vendor fonts THIRD_PARTY_NOTICES.txt _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

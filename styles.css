@@ -17,18 +17,13 @@
   --field:#eceef0; --orig:#8b93a0;
   --end:#2d5be3; --out:#0f9670; --in:#d63a71;
   --focus:#2d5be3;
+  color-scheme:light;
   --mono:"ABC Areal Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
 }
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
-    --ink:#e9eaec; --muted:#a3a8b0; --faint:#71767e; --line:#33373d;
-    --rail:#1c1e22; --canvas:#141518; --sheet:#202226; --glyph:#eef0f2;
-    --field:#2a2d32; --orig:#7c8592;
-    --end:#6f93ff; --out:#33c79b; --in:#ff6f9e; --focus:#6f93ff;
-  }
-}
+/* Pracujemy na jasnym interfejsie. Ciemna paleta czeka niżej pod [data-theme="dark"]
+   — żeby ją włączyć automatycznie, wystarczy opakować tamten blok w @media (prefers-color-scheme: dark). */
 :root[data-theme="dark"]{
   --ink:#e9eaec; --muted:#a3a8b0; --faint:#71767e; --line:#33373d;
   --rail:#1c1e22; --canvas:#141518; --sheet:#202226; --glyph:#eef0f2;
@@ -165,6 +160,7 @@ details[open] summary{margin-bottom:14px}
 .grid-minor{stroke:var(--line); stroke-width:1; vector-effect:non-scaling-stroke; opacity:.45}
 .grid-major{stroke:var(--line); stroke-width:1; vector-effect:non-scaling-stroke}
 .metric{stroke:var(--end); stroke-width:1; vector-effect:non-scaling-stroke; opacity:.55; stroke-dasharray:4 3}
+.metric.baseline{stroke:var(--ink); opacity:.75; stroke-width:1.25; stroke-dasharray:6 4}
 .metric-label{fill:var(--end); opacity:.8; font-family:inherit}
 .guide{fill:none; stroke:var(--line); stroke-width:1; vector-effect:non-scaling-stroke}
 .badge{fill:var(--ink)}

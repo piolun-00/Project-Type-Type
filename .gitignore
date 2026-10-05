@@ -3,5 +3,5 @@ node_modules/
 *.log
 tests/out/
 
-# Licencjonowane fonty do podglądu i interfejsu — trzymane tylko lokalnie
-fonts/
+# Kontekst projektu — zostaje lokalnie, nie w publicznym repo
+CLAUDE.md

@@ -235,7 +235,7 @@
       else cmds.push({ type: 'C', x1: s.p1.x, y1: s.p1.y, x2: s.p2.x, y2: s.p2.y, x: s.p3.x, y: s.p3.y });
     };
     // łuk narożnika z (możliwie) różnymi przycięciami po obu stronach
-    const fillet = (P1, T1, d1, P2, T2, d2, c) => {
+    const fillet = (P1, T1, P2, T2) => {
       if (dist(P1, P2) <= tiny) { cmds.push({ type: 'C', x1: P1.x, y1: P1.y, x2: P2.x, y2: P2.y, x: P2.x, y: P2.y }); return; }
       // uchwyty liczone z rzeczywistych stycznych w punktach przycięcia i cięciwy (łuk koła między P1 i P2),
       // a nie z kąta pierwotnego narożnika — przy krzywych bokach te kąty potrafią się mocno różnić
@@ -325,7 +325,7 @@
           if (doFillet) {
             const P1 = bez(segs[J.from], t1[pk]), P2 = bez(segs[J.to], t0[k]);
             const T1 = norm(deriv(segs[J.from], t1[pk])), T2 = norm(deriv(segs[J.to], t0[k]));
-            fillet(P1, T1, dIn[pk], P2, T2, dOut[pk], c);
+            fillet(P1, T1, P2, T2);
           } else if (J.micro.length && !c) {
             // gładki węzeł z mikro-detalem: drobny „schodek” zastępujemy prostym połączeniem
             const q = segs[J.to].p0; cmds.push({ type: 'L', x: q.x, y: q.y });
@@ -359,14 +359,6 @@
     return s;
   }
 
-  // szacowanie grubości kreski: mediana szerokości wykrytych zakończeń
-  function estimateStroke(analyses, fallback) {
-    const v = [];
-    for (const A of analyses) for (const C of A) for (const c of C.corners) if (c && c.type === 'end') v.push(c.endLen);
-    if (v.length < 2) return fallback;
-    v.sort((a, b) => a - b);
-    return v[Math.floor(v.length / 2)];
-  }
 
   // grubość kreski z przekrojów: długości odcinków „w farbie” na liniach skanujących
   function inkRuns(polys, rule, horiz, c) {
@@ -404,7 +396,7 @@
     return v[Math.floor(v.length * 0.4)];
   }
 
-  const api = { commandsToContours, analyze, round, toPathData, estimateStroke, estimateStrokeScan };
+  const api = { commandsToContours, analyze, round, toPathData, estimateStrokeScan };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.RounderCore = api;
 })(this);

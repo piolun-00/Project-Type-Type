@@ -1,4 +1,4 @@
-/* Szlifiernia — budowa fontu zmiennego TrueType (glyf + gvar + fvar + STAT) bez zależności */
+/* Type Type — budowa fontu zmiennego TrueType (glyf + gvar + fvar + STAT) bez zależności */
 (function (root) {
   'use strict';
 
@@ -271,7 +271,7 @@
     for (const d of gv) { offs.push(acc); acc += d.length; }
     offs.push(acc);
     const hdr = 20, offsetsLen = (N + 1) * 4;
-    gvW.u16(1).u16(0).u16(AX).u16(0).u32(hdr + offsetsLen).u16(N).u16(1).u32(hdr + offsetsLen);
+    gvW.u16(1).u16(0).u16(AX).u16(0).u32(0).u16(N).u16(1).u32(hdr + offsetsLen);   // brak wspólnych krotek → offset 0
     for (const o of offs) gvW.u32(o);
     for (const d of gv) gvW.bytes(d);
 
