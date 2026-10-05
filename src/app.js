@@ -533,15 +533,17 @@ function renderEdit(rp, counts){
     const c = C.corners[k], v = J.v; if (!v) return;
     const cx = v.x.toFixed(2), cy = (asc - v.y).toFixed(2);
     const n = M && M.nodeAt[ci][k];
+    if (c) { const t = effType(n, c); counts[t] = (counts[t] || 0) + 1; }
+    if (!state.showC) return;                  // podgląd bez znaczników — czysty kształt
     if (c) {
-      const t = effType(n, c); counts[t] = (counts[t] || 0) + 1;
+      const t = effType(n, c);
       marks += `<circle class="m-${t}" cx="${cx}" cy="${cy}" r="${mR.toFixed(2)}"/>`;
       if (n || c.forced) marks += `<circle class="m-halo" cx="${cx}" cy="${cy}" r="${(mR*1.9).toFixed(2)}"/><circle class="m-ovr" cx="${cx}" cy="${cy}" r="${(mR*1.9).toFixed(2)}"/>`;
-    } else if (state.showC) {
+    } else {
       marks += `<circle class="m-pt" cx="${cx}" cy="${cy}" r="${(mR*0.7).toFixed(2)}"/>`;
     }
     if (state.sel.some(q => near(q, v))) marks += `<circle class="m-halo" cx="${cx}" cy="${cy}" r="${(mR*2.6).toFixed(2)}"/><circle class="m-sel" cx="${cx}" cy="${cy}" r="${(mR*2.6).toFixed(2)}"/>`;
-    if (c || state.showC) marks += `<circle class="m-hit" data-node="${v.x.toFixed(2)},${v.y.toFixed(2)}" cx="${cx}" cy="${cy}" r="${hitR.toFixed(2)}"/>`;
+    marks += `<circle class="m-hit" data-node="${v.x.toFixed(2)},${v.y.toFixed(2)}" cx="${cx}" cy="${cy}" r="${hitR.toFixed(2)}"/>`;
   }));
   if (contour) marks += renderContourMarks(curCons(), asc, px);
   const gridSvg = state.showG ? renderGrid(box, px, asc) : '';
@@ -1290,6 +1292,9 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
     }
     const hit = e.target.closest('[data-node]');
     if (hit) { const [x, y] = hit.dataset.node.split(',').map(Number); selectNode({ x, y }, e.shiftKey); return; }
+    // klik obok narożnika odznacza — bez tego zaznaczenie wisiało aż do Escape
+    if (state.mode === 'font' && state.view === 'edit' && state.vmode === 'corners'
+        && !state.spacePan && !e.shiftKey && state.sel.length) { state.sel = []; updatePanel(); schedule(); }
     let el = st;
     if (state.mode === 'font' && state.view === 'edit') {             // w edycji przesuwanie tylko ze spacją
       if (!state.spacePan) return;
