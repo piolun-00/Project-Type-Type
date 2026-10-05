@@ -35,6 +35,26 @@ THIRD_PARTY_NOTICES.txt    licencje bibliotek zewnętrznych
 
 Projekt nie wymaga budowania. Pliki działają dokładnie w takiej postaci, w jakiej są w repozytorium.
 
+### Krój interfejsu i domyślny podgląd
+
+Interfejs używa kroju **ABC Areal** (ABC Dinamo), przypisy i liczby — **ABC Areal Mono**.
+Do podglądu domyślnie wczytuje się **ABC Areal Bold** i aplikacja startuje w widoku „Wszystkie glify”.
+Pliki fontu są licencjonowane, więc **nie ma ich w repozytorium** — katalog `fonts/` jest w `.gitignore`.
+
+Żeby mieć je u siebie, skopiuj do `fonts/`:
+
+```
+ABCAreal-Regular.woff2        ABCAreal-RegularItalic.woff2
+ABCAreal-Medium.woff2         ABCAreal-MediumItalic.woff2
+ABCAreal-Bold.woff2           ABCAreal-BoldItalic.woff2
+ABCAreal-Bold.ttf             (domyślny podgląd — opentype.js nie czyta WOFF2)
+ABCArealMono-Regular.woff2    ABCArealMono-Medium.woff2    ABCArealMono-Bold.woff2
+```
+
+Bez tych plików strona działa normalnie: interfejs spada na systemowy krój bezszeryfowy,
+a podgląd startuje na kształtach demo. Domyślny font wczytuje się przez `fetch`,
+więc trzeba uruchomić stronę z serwera (`npm start`) — po dwukliku w `index.html` zostaną kształty demo.
+
 ## Publikacja na GitHubie — krok po kroku
 
 1. Zaloguj się na github.com i kliknij **New repository**. Nadaj nazwę, np. `szlifiernia`. Nie zaznaczaj dodawania README ani licencji — są już w paczce.

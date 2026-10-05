@@ -1,9 +1,23 @@
+/* Krój interfejsu: ABC Areal (ABC Dinamo), wczytywany z lokalnego katalogu fonts/.
+   Pliki fontu NIE są w repozytorium (patrz .gitignore) — są licencjonowane.
+   Gdy ich nie ma, interfejs spada na systemowy stos bezszeryfowy. */
+@font-face{font-family:"ABC Areal"; src:url("fonts/ABCAreal-Regular.woff2") format("woff2"); font-weight:400; font-style:normal; font-display:swap}
+@font-face{font-family:"ABC Areal"; src:url("fonts/ABCAreal-RegularItalic.woff2") format("woff2"); font-weight:400; font-style:italic; font-display:swap}
+@font-face{font-family:"ABC Areal"; src:url("fonts/ABCAreal-Medium.woff2") format("woff2"); font-weight:500; font-style:normal; font-display:swap}
+@font-face{font-family:"ABC Areal"; src:url("fonts/ABCAreal-MediumItalic.woff2") format("woff2"); font-weight:500; font-style:italic; font-display:swap}
+@font-face{font-family:"ABC Areal"; src:url("fonts/ABCAreal-Bold.woff2") format("woff2"); font-weight:600 700; font-style:normal; font-display:swap}
+@font-face{font-family:"ABC Areal"; src:url("fonts/ABCAreal-BoldItalic.woff2") format("woff2"); font-weight:600 700; font-style:italic; font-display:swap}
+@font-face{font-family:"ABC Areal Mono"; src:url("fonts/ABCArealMono-Regular.woff2") format("woff2"); font-weight:400; font-style:normal; font-display:swap}
+@font-face{font-family:"ABC Areal Mono"; src:url("fonts/ABCArealMono-Medium.woff2") format("woff2"); font-weight:500; font-style:normal; font-display:swap}
+@font-face{font-family:"ABC Areal Mono"; src:url("fonts/ABCArealMono-Bold.woff2") format("woff2"); font-weight:600 700; font-style:normal; font-display:swap}
+
 :root{
   --ink:#1d1f24; --muted:#676c75; --faint:#9aa0a8; --line:#d4d7dc;
   --rail:#f5f6f7; --canvas:#e3e5e8; --sheet:#ffffff; --glyph:#1d1f24;
   --field:#eceef0; --orig:#8b93a0;
   --end:#2d5be3; --out:#0f9670; --in:#d63a71;
   --focus:#2d5be3;
+  --mono:"ABC Areal Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
 }
@@ -25,7 +39,7 @@
 [hidden]{display:none!important}
 html{scroll-padding-top:env(safe-area-inset-top,0px); height:100%}
 body{margin:0; height:100%; background:var(--canvas); color:var(--ink);
-  font:400 14px/1.45 "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif; -webkit-font-smoothing:antialiased}
+  font:400 14px/1.45 "ABC Areal", -apple-system, "Helvetica Neue", Arial, sans-serif; -webkit-font-smoothing:antialiased}
 button,input,textarea,select{font:inherit; color:inherit}
 :focus-visible{outline:2px solid var(--focus); outline-offset:2px}
 
@@ -187,3 +201,9 @@ details[open] summary{margin-bottom:14px}
   .sheet{padding:18px}
 }
 @media (prefers-reduced-motion: reduce){ *{transition:none!important} }
+
+/* Przypisy, podpisy i liczby — ABC Areal Mono */
+.hint, .foot, .count, .file-info, .lbl, .edit-sample-label, .gname, .metric-label, .brand span,
+.num, #strokeOv, #vX, #vY, #note{ font-family:var(--mono); }
+.hint, .foot, .count, .file-info, .edit-sample-label, .gname{ letter-spacing:-.005em; }
+.num, #strokeOv, #vX, #vY{ font-variant-numeric:tabular-nums; }

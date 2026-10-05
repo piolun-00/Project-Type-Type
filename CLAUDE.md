@@ -29,6 +29,8 @@ Projekt powstał jako prototyp w czacie Claude (wersje 0.1–0.13). To repozytor
 - Walidacja plików: `pip install opentype-sanitizer`, potem `python -m ots tests/out/test-rounded.otf` i `python -m ots tests/out/test-vf.ttf`. OTS to ten sam walidator, którego używają Chrome i Firefox.
 - CI: `.github/workflows/deploy.yml` — testy + OTS, a po sukcesie publikacja na GitHub Pages (`_site` z plikami strony).
 - **W repozytorium nie ma żadnych licencjonowanych fontów i ma tak zostać.** Właściciel testuje na własnych fontach, m.in. Marund (ma licencję).
+- Krój interfejsu i domyślny font podglądu to **ABC Areal** (ABC Dinamo). Pliki leżą w katalogu `fonts/`, który jest w `.gitignore` — **nigdy ich nie commituj**. Gdy katalogu nie ma (np. na opublikowanej stronie), interfejs spada na systemowy stos bezszeryfowy, a podgląd zostaje na kształtach demo. Potrzebne pliki: `ABCAreal-{Regular,RegularItalic,Medium,MediumItalic,Bold,BoldItalic}.woff2` do interfejsu, `ABCArealMono-{Regular,Medium,Bold}.woff2` do przypisów i liczb, oraz `ABCAreal-Bold.ttf` jako domyślny font podglądu (opentype.js nie czyta WOFF2). Start aplikacji ustawia widok „Wszystkie glify”.
+- Domyślny font wczytuje się przez `fetch`, więc **wymaga serwera** (`npm start` albo `python3 -m http.server`). Po dwukliku w `index.html` protokół `file://` blokuje `fetch` i zostają kształty demo.
 - Do testów interfejsu w trakcie prototypu dobrze sprawdzał się Playwright (Chromium headless): wczytanie fontu przez `set_input_files('#file', …)`, klikanie, zrzuty ekranu.
 
 ## Struktura

@@ -1329,5 +1329,26 @@ $('jsonFile').addEventListener('change', async e => {
 });
 $('famName').addEventListener('input', autosave);
 
-setLic(); loadDemo();
+/* Domyślny podgląd: ABC Areal z katalogu fonts/ (pliki licencjonowane, nie ma ich w repozytorium).
+   Gdy fontu nie ma — np. na opublikowanej stronie — wracamy do kształtów demo. */
+const BOOT_FONT = 'fonts/ABCAreal-Bold.ttf';
+async function loadBootFont(){
+  if (!window.opentype) return false;
+  try {
+    const res = await fetch(BOOT_FONT, { cache: 'force-cache' });
+    if (!res.ok) return false;
+    const buf = await res.arrayBuffer();
+    const font = opentype.parse(buf);
+    state.srcTables = (() => { try { return RounderVF.readTables(new Uint8Array(buf)); } catch(e) { return null; } })();
+    state.hash = 'font-' + hashBytes(new Uint8Array(buf));
+    useFont(font, 'ABCAreal-Bold.ttf');
+    state.view = 'glyphs';                   // start na siatce wszystkich glifów
+    syncUI(); schedule();
+    offerRestore();
+    return true;
+  } catch (e) { return false; }
+}
+setLic();
+loadDemo();                                  // coś jest na ekranie od pierwszej klatki
+loadBootFont();                              // i podmieniamy na font, gdy się wczyta
 })();

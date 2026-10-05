@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Zasady korzystania — Szlifiernia</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
+  /* ABC Areal z lokalnego katalogu fonts/ — pliki fontu nie są w repozytorium. */
+  @font-face{font-family:"ABC Areal"; src:url("fonts/ABCAreal-Regular.woff2") format("woff2"); font-weight:400; font-style:normal; font-display:swap}
+  @font-face{font-family:"ABC Areal"; src:url("fonts/ABCAreal-Bold.woff2") format("woff2"); font-weight:600 700; font-style:normal; font-display:swap}
   :root{ --ink:#1d1f24; --muted:#676c75; --bg:#f5f6f7; }
   @media (prefers-color-scheme: dark){ :root{ --ink:#e9eaec; --muted:#a3a8b0; --bg:#1c1e22; } }
-  body{ margin:0; background:var(--bg); color:var(--ink); font:400 16px/1.6 "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif; }
+  body{ margin:0; background:var(--bg); color:var(--ink); font:400 16px/1.6 "ABC Areal", -apple-system, "Helvetica Neue", Arial, sans-serif; }
   main{ max-width:680px; margin:0 auto; padding:56px 24px 80px; }
   h1{ font-size:30px; margin:0 0 8px; letter-spacing:-.01em; }
   h2{ font-size:18px; margin:36px 0 8px; }
@@ -37,7 +37,7 @@
   <p>Szlifiernia jest udostępniana w obecnej postaci, bez żadnych gwarancji. Sprawdzaj wyeksportowane pliki przed użyciem w projektach produkcyjnych.</p>
 
   <h2>Zewnętrzne zasoby</h2>
-  <p>Interfejs korzysta z kroju Schibsted Grotesk ładowanego z Google Fonts. Biblioteki do obsługi fontów (opentype.js) i geometrii (paper.js) są dołączone do strony i działają lokalnie.</p>
+  <p>Strona nie ładuje niczego z zewnętrznych serwerów. Krój interfejsu (ABC Areal) oraz biblioteki do obsługi fontów (opentype.js) i geometrii (paper.js) są dołączone do strony i działają lokalnie.</p>
 </main>
 </body>
 </html>

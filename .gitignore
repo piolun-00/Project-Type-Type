@@ -2,3 +2,6 @@ node_modules/
 .DS_Store
 *.log
 tests/out/
+
+# Licencjonowane fonty do podglądu i interfejsu — trzymane tylko lokalnie
+fonts/
