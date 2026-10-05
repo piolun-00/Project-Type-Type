@@ -51,7 +51,7 @@ section h2{margin:0 0 12px; font-size:13px; font-weight:600}
 .hint{color:var(--muted); font-size:12.5px; margin:6px 0 0}
 
 /* plik */
-.license{display:flex; gap:10px; align-items:flex-start; cursor:pointer; font-size:13px}
+.license{display:flex; gap:10px; align-items:flex-start; cursor:pointer; font-size:13px; margin-top:10px}
 .license input{margin:2px 0 0; width:16px; height:16px; accent-color:var(--ink); flex:none}
 .drop{margin-top:12px; border:1.5px dashed var(--line); border-radius:10px; padding:16px; text-align:center;
   color:var(--muted); font-size:13px; transition:border-color .15s, background .15s}
@@ -119,8 +119,8 @@ details[open] summary{margin-bottom:14px}
 
 .stage{flex:1; overflow:auto; padding:28px; cursor:grab; touch-action:none; overscroll-behavior:contain}
 .stage.dragging{cursor:grabbing; user-select:none}
-.sheet{background:var(--sheet); border-radius:4px; min-height:100%; min-width:100%; width:max-content; padding:36px; display:flex; align-items:flex-start; justify-content:flex-start}
-.sheet svg{display:block; flex:none}
+.sheet{background:var(--sheet); border-radius:4px; min-height:100%; min-width:100%; width:max-content; padding:36px; display:flex}
+.sheet svg{display:block; flex:none; margin:auto}
 .glyph{fill:var(--glyph)}
 .orig{fill:none; stroke:var(--orig); stroke-width:1.5; vector-effect:non-scaling-stroke}
 .m-end{fill:var(--end)} .m-out{fill:var(--out)} .m-in{fill:var(--in)} .m-off{fill:var(--faint)}

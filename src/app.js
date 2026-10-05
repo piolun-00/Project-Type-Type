@@ -640,8 +640,8 @@ function useShapes(shapes, source, name){
   $('fileInfo').innerHTML = `Teraz: <b></b>`; $('fileInfo').querySelector('b').textContent = name;
   schedule();
 }
-function useFont(font, name){
-  state.mode='font'; state.source='font'; state.font=font; state.fontFile=name; state.shapes=[];
+function useFont(font, name, boot){
+  state.mode='font'; state.source = boot ? 'boot' : 'font'; state.font=font; state.fontFile=name; state.shapes=[];
   state.ovr = {}; state.sel = []; hist.undo.length = 0; hist.redo.length = 0; state.edit = firstGlyph();
   if (state.view === 'edit') state.view = 'text';
   state.ref = font.unitsPerEm; state.loadId = (state.loadId||0)+1; cache.clear(); refreshDetection(); syncUI();
@@ -736,6 +736,7 @@ function makeZip(files){
 }
 async function exportFont(){
   const btn = $('expFont'); if (!state.font) return;
+  if (state.source === 'boot') { setMsg('Domyślnego fontu nie da się stąd pobrać. Wgraj własny plik.', true); return; }
   const src = state.font, rp = roundParams(), upm = src.unitsPerEm;
   const family = ($('famName').value || 'Rounded').trim();
   btn.disabled = true; const label = btn.textContent;
@@ -780,6 +781,7 @@ function slug(s){
 }
 async function exportVF(){
   const btn = $('expVF'); if (!state.font) return;
+  if (state.source === 'boot') { setMsg('Domyślnego fontu nie da się stąd pobrać. Wgraj własny plik.', true); return; }
   const src = state.font, upm = src.unitsPerEm, S = stroke(), p = state.p;
   const family = ($('famName').value || 'Rounded').trim();
   const ps = slug(family).replace(/-/g,'') || 'Rounded';
@@ -1163,6 +1165,11 @@ function syncUI(){
   const z = zoomCfg(); sz.min = z.min; sz.max = z.max; sz.step = z.step; sz.value = z.get(); sz.setAttribute('aria-label', z.label);
   $('text').value = state.text;
   $('fontExport').hidden = state.mode !== 'font';
+  // ABC Areal służy tylko za materiał do pracy — nie pozwalamy go stąd wynieść jako font
+  const locked = state.source === 'boot';
+  $('expLocked').hidden = !locked; $('expNote').hidden = locked;
+  $('expFont').disabled = locked; $('expVF').disabled = locked;
+  $('famName').disabled = locked;
   $('text').style.display = state.mode === 'font' && state.view === 'text' ? '' : 'none';
   $('viewSeg').style.display = state.mode === 'font' ? '' : 'none';
   $('viewSeg').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x.dataset.v === state.view));
@@ -1444,7 +1451,7 @@ async function loadBootFont(){
     const font = opentype.parse(buf);
     state.srcTables = (() => { try { return RounderVF.readTables(new Uint8Array(buf)); } catch(e) { return null; } })();
     state.hash = 'font-' + hashBytes(new Uint8Array(buf));
-    useFont(font, 'ABCAreal-Bold.ttf');
+    useFont(font, 'ABCAreal-Bold.ttf', true);
     state.view = 'glyphs';                   // start na siatce wszystkich glifów
     syncUI(); schedule();
     offerRestore();
