@@ -892,7 +892,7 @@ function updatePanel(){
   P.hidden = !on; if (!on) return;
   const g = editGlyph(), info = editInfo(), E = state.ovr[info.key];
   const contour = state.vmode === 'contour';
-  $('vPanel').hidden = !contour; $('cPanel').hidden = contour;
+  $('vPanel').hidden = !contour; $('cPanel').hidden = false;
   if (contour) {
     const nodes = state.vsel.filter(s => s.part === 'node');
     $('vHint').textContent = !state.vsel.length
@@ -911,7 +911,9 @@ function updatePanel(){
   $('s-gscale').value = gs; $('n-gscale').value = gs; paint($('s-gscale'));
   const sel = selectedJoints(info), corners = sel.filter(j => j.c), points = sel.filter(j => !j.c);
   $('npHint').textContent = !sel.length
-    ? 'Nic nie zaznaczono. Puste kółka na glifie to punkty, których algorytm nie uznał za narożniki — po kliknięciu możesz je wymusić. Strzałki przeskakują między narożnikami.'
+    ? (contour
+       ? 'Zaznacz węzeł na konturze, żeby ustawić jego zaokrąglenie.'
+       : 'Nic nie zaznaczono. Puste kółka na glifie to punkty, których algorytm nie uznał za narożniki — po kliknięciu możesz je wymusić. Strzałki przeskakują między narożnikami.')
     : `Zaznaczone: ${corners.length ? corners.length + ' ' + (corners.length === 1 ? 'narożnik' : 'narożniki') : ''}${corners.length && points.length ? ' i ' : ''}${points.length ? points.length + ' ' + (points.length === 1 ? 'punkt bez narożnika' : 'punkty bez narożnika') : ''}.`;
   $('npCtrls').hidden = !corners.length;
   if (corners.length) {
@@ -1016,6 +1018,12 @@ function writeCons(cons){
   const key = 'g' + state.edit, E = entry(key);
   E.path = fromNodes(cons); E.pk = hashStr(JSON.stringify(E.path));
 }
+function syncSelFromVsel(){
+  const cons = curCons();
+  state.sel = state.vsel.filter((s) => s.part === 'node')
+    .map((s) => cons[s.ci] && cons[s.ci].nodes[s.ni])
+    .filter(Boolean).map((n) => ({ x: n.x, y: n.y }));
+}
 const vkey = (s) => s.ci + ',' + s.ni + ',' + s.part;
 const vSelected = (ci, ni, part) => state.vsel.some(s => s.ci === ci && s.ni === ni && s.part === part);
 // korekty narożników leżące w miejscu przesuwanych węzłów jadą razem z nimi
@@ -1069,7 +1077,7 @@ function vectorDown(e, key){
   const cons = curCons();
   vdrag = { id: e.pointerId, start: toFont(e), base: clone(cons), moved: false, corr: collectCorr(cons) };
   try { document.querySelector('.stage').setPointerCapture(e.pointerId); } catch (err) {}
-  updatePanel(); schedule();
+  syncSelFromVsel(); updatePanel(); schedule();
 }
 function vectorMove(e){
   if (!vdrag || e.pointerId !== vdrag.id) return false;
@@ -1083,7 +1091,8 @@ function vectorMove(e){
 }
 function vectorUp(e){
   if (!vdrag || e.pointerId !== vdrag.id) return false;
-  const moved = vdrag.moved; vdrag = null; if (moved) { autosave(); updatePanel(); }
+  const moved = vdrag.moved; vdrag = null;
+  if (moved) { syncSelFromVsel(); autosave(); updatePanel(); }
   return true;
 }
 function vectorNudge(dx, dy){
@@ -1092,7 +1101,7 @@ function vectorNudge(dx, dy){
   const base = clone(cons), corr = collectCorr(cons);
   applyMove(cons, base, dx, dy, false); writeCons(cons);
   for (const c of corr) { c.q.x += dx; c.q.y += dy; }
-  updatePanel(); schedule(); autosave();
+  syncSelFromVsel(); updatePanel(); schedule(); autosave();
 }
 function vectorDelete(){
   const cons = curCons(), del = state.vsel.filter(s => s.part === 'node'); if (!del.length) return;
@@ -1102,7 +1111,7 @@ function vectorDelete(){
   const byC = {}; for (const s of del) (byC[s.ci] = byC[s.ci] || []).push(s.ni);
   for (const ci in byC) byC[ci].sort((x, y) => y - x).forEach(ni => cons[ci].nodes.splice(ni, 1));
   writeCons(cons.filter(C => C.nodes.length >= 2));
-  state.vsel = []; updatePanel(); schedule(); autosave();
+  state.vsel = []; state.sel = []; updatePanel(); schedule(); autosave();
 }
 function vectorInsert(ci, si, pt){
   const cons = curCons(), C = cons[ci]; if (!C) return;
@@ -1120,7 +1129,7 @@ function vectorInsert(ci, si, pt){
     a.out = q1; b.in = q3; nn = { x: s.x, y: s.y, in: r1, out: r2 };
   }
   N.splice(si + 1, 0, nn); writeCons(cons);
-  state.vsel = [{ ci, ni: si + 1, part: 'node' }]; updatePanel(); schedule(); autosave();
+  state.vsel = [{ ci, ni: si + 1, part: 'node' }]; syncSelFromVsel(); updatePanel(); schedule(); autosave();
 }
 function vectorSmooth(make){
   const cons = curCons(), sel = state.vsel.filter(s => s.part === 'node'); if (!sel.length) return;
@@ -1229,17 +1238,25 @@ function scroller(){ return (state.mode === 'font' && state.view === 'edit' && d
 // Przybliżanie idzie zawsze przez suwak Skala: szczypanie na gładziku, Ctrl + kółko,
 // klawisze +/− i sam suwak robią dokładnie to samo. Dzięki temu suwak zawsze pokazuje
 // aktualny stan, a gest nie walczy z własnym kotwiczeniem na kursorze.
-let zq = null;
-// wartość z uwzględnieniem gestu, który czeka na przerysowanie
-const curZoom = () => (zq ? zq.v : zoomCfg().get());
+let zq = null, zoomF = null, zoomFKey = '';
+// Powiększenie trzymamy dodatkowo jako liczbę ułamkową. Bez tego drobne ruchy gładzika
+// (ułamek procenta na zdarzenie) ginęły przy zaokrąglaniu do kroku suwaka i gest
+// nie robił nic, dopóki nie szarpnęło się mocno — najgorzej przy małych wartościach skali.
+const curZoom = () => {
+  const k = state.mode + '|' + state.view;
+  if (zoomF == null || zoomFKey !== k) { zoomF = zoomCfg().get(); zoomFKey = k; }
+  return zoomF;
+};
 function zoomTo(v){
   const z = zoomCfg(), step = +$('size').step || 1;
-  v = Math.max(z.min, Math.min(z.max, Math.round(v / step) * step));
-  if (v === curZoom()) return;
-  $('size').value = v;                       // suwak rusza się od razu, razem z gestem
-  if (zq) { zq.v = v; return; }
+  curZoom();                                 // dociągnij akumulator do bieżącego widoku
+  zoomF = Math.max(z.min, Math.min(z.max, v));
+  const target = Math.round(zoomF / step) * step;
+  $('size').value = target;                  // suwak rusza się od razu, razem z gestem
+  if (zq) { zq.v = target; return; }
+  if (target === z.get()) return;            // jeszcze nie uzbierało się na pełny krok
   const sc = scroller();
-  zq = { v, old: z.get(), sl: sc.scrollLeft, stp: sc.scrollTop };
+  zq = { v: target, old: z.get(), sl: sc.scrollLeft, stp: sc.scrollTop };
   requestAnimationFrame(applyZoom);
 }
 function applyZoom(){
@@ -1288,7 +1305,7 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
     const vp = e.target.closest('[data-vp]');
     if (vp && !state.spacePan) { vectorDown(e, vp.dataset.vp); return; }
     if (state.mode === 'font' && state.view === 'edit' && state.vmode === 'contour' && !state.spacePan) {
-      if (!e.shiftKey && !e.target.closest('[data-vs]') && state.vsel.length) { state.vsel = []; updatePanel(); schedule(); }
+      if (!e.shiftKey && !e.target.closest('[data-vs]') && state.vsel.length) { state.vsel = []; state.sel = []; updatePanel(); schedule(); }
       return;
     }
     const hit = e.target.closest('[data-node]');
@@ -1341,7 +1358,10 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
       return;
     }
     e.preventDefault();
-    zoomTo(curZoom() * Math.exp(-e.deltaY * 0.0025));
+    // Gładzik sypie drobnymi wartościami, mysz jedną dużą na ząbek — przycinamy,
+    // żeby jedno kliknięcie kółka nie przeskakiwało przez pół zakresu.
+    const d = Math.max(-25, Math.min(25, e.deltaY));
+    zoomTo(curZoom() * Math.exp(-d * 0.01));
   }, { passive: false });
 })();
 function fitText(){ const t = $('text'); t.style.height = 'auto'; t.style.height = Math.min(120, Math.max(36, t.scrollHeight)) + 'px'; }
@@ -1455,7 +1475,7 @@ document.addEventListener('keydown', e => {
     const dirs = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] };
     if (dirs[e.key] && state.vsel.length) { e.preventDefault(); vectorNudge(...dirs[e.key]); return; }
     if ((e.key === 'Backspace' || e.key === 'Delete') && state.vsel.length) { e.preventDefault(); vectorDelete(); return; }
-    if (e.key === 'Escape') { state.vsel = []; updatePanel(); schedule(); return; }
+    if (e.key === 'Escape') { state.vsel = []; state.sel = []; updatePanel(); schedule(); return; }
   }
   if (e.key === 'Escape') { state.sel = []; updatePanel(); schedule(); }
   // strzałki lewo/prawo przeskakują narożniki; Tab zostaje wolny, żeby dało się wyjść klawiaturą
@@ -1490,26 +1510,75 @@ async function loadBootFont(){
     const font = opentype.parse(buf);
     state.srcTables = (() => { try { return RounderVF.readTables(new Uint8Array(buf)); } catch(e) { return null; } })();
     state.hash = 'font-' + hashBytes(new Uint8Array(buf));
-    state.booting = false;
-    useFont(font, 'ABCAreal-Bold.ttf', true);
-    state.view = 'glyphs';                   // start na siatce wszystkich glifów
-    syncUI(); schedule();
-    offerRestore();
+    useFont(font, 'ABCAreal-Bold.ttf', true);   // render nic nie rysuje, dopóki state.booting
     return true;
   } catch (e) { return false; }
 }
+const BOOT_LINES = ['Wczytywanie', 'glifów…'];
+const BOOT_MS = 3000;        // ekran startowy trwa co najmniej tyle
+const MORPH_MS = 1150;       // z czego tyle zajmuje zaokrąglanie napisu
 function bootMsg(){
   const sh = $('sheet');
   sh.classList.add('boot-screen');           // plansza na całą szerokość, inaczej napis się nie mieści
-  sh.innerHTML = '<div class="boot"><span>Wczytywanie</span><span>glifów…</span></div>';
+  sh.innerHTML = `<div class="boot"><span>${BOOT_LINES[0]}</span><span>${BOOT_LINES[1]}</span></div>`;
+}
+// Napis startowy rysowany konturami wczytanego fontu i przepuszczony przez ten sam
+// silnik, co cała aplikacja — g to wartość wszystkich trzech suwaków naraz (0..1).
+function bootFrame(g){
+  const f = state.font, asc = f.ascender, H = asc - f.descender, lh = H * 0.92, p = state.p;
+  const rp = { end: g, out: g, in: g, rOut: p.kOut * state.strokeAuto, rIn: p.kIn * state.strokeAuto,
+               tension: p.tension, tanMax: p.tanMax, absorb: p.absorb > 0, absorbMax: p.absorb / 100 * state.ref };
+  const lines = BOOT_LINES.map((t) => (t === 'glifów…' && !f.charToGlyphIndex('…') ? 'glifów...' : t));
+  let d = '', w = 0;
+  lines.forEach((t, i) => {
+    const L = layoutLine(f, t, asc + i * lh);
+    w = Math.max(w, L.w);
+    for (const it of L.items) {
+      const gc = glyphCmds(it.g); if (!gc.length) continue;
+      d += `<path d="${R.toPathData(roundShape('g' + it.g.index, gc, 'nonzero', rp).cm, it.x, it.y, 1, true, 1)}"/>`;
+    }
+  });
+  const h = lh * (lines.length - 1) + H;
+  return `<svg xmlns="http://www.w3.org/2000/svg" class="boot-svg" viewBox="0 0 ${w.toFixed(0)} ${h.toFixed(0)}" aria-label="Wczytywanie glifów"><g class="glyph">${d}</g></svg>`;
+}
+function bootMorph(t0){
+  return new Promise((done) => {
+    const sh = $('sheet');
+    sh.innerHTML = bootFrame(0);             // ten sam napis, już konturami fontu
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const hold = Math.max(0, BOOT_MS - MORPH_MS - (performance.now() - t0));
+    setTimeout(() => {
+      if (reduce) { sh.innerHTML = bootFrame(1); setTimeout(done, MORPH_MS); return; }
+      const start = performance.now();
+      const step = () => {
+        const u = Math.min(1, (performance.now() - start) / MORPH_MS);
+        const e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;   // łagodny start i koniec
+        sh.innerHTML = bootFrame(e);
+        // w karcie w tle przeglądarka wstrzymuje klatki animacji — wtedy jedziemy na zegarze,
+        // żeby ekran startowy nie został na zawsze
+        if (u < 1) (document.hidden ? setTimeout(step, 120) : requestAnimationFrame(step));
+        else setTimeout(done, 280);
+      };
+      step();
+    }, hold);
+  });
 }
 async function boot(){
+  const t0 = performance.now();
   setLic(); syncUI();
   bootMsg();
   $('note').textContent = '';
-  if (await loadBootFont()) return;
+  if (!(await loadBootFont())) {
+    state.booting = false;
+    loadDemo();                              // font niedostępny (np. otwarcie przez file://)
+    return;
+  }
+  // ostatnia linia obrony: cokolwiek by się stało z animacją, aplikacja ma wstać
+  await Promise.race([bootMorph(t0), new Promise((r) => setTimeout(r, BOOT_MS + MORPH_MS + 2000))]);
   state.booting = false;
-  loadDemo();                                // font niedostępny (np. otwarcie przez file://)
+  state.view = 'glyphs';                     // start na siatce wszystkich glifów
+  syncUI(); render();
+  offerRestore();
 }
 boot();
 })();

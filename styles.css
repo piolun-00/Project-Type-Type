@@ -125,6 +125,7 @@ details[open] summary{margin-bottom:14px}
 .boot{margin:auto; width:100%; display:flex; flex-direction:column; justify-content:center;
   font-weight:700; letter-spacing:-.035em; line-height:.92; color:var(--ink);
   font-size:15cqw; white-space:nowrap}
+.boot-svg{margin:auto; display:block; width:100%; height:auto}
 .glyph{fill:var(--glyph)}
 .orig{fill:none; stroke:var(--orig); stroke-width:1.5; vector-effect:non-scaling-stroke}
 .m-end{fill:var(--end)} .m-out{fill:var(--out)} .m-in{fill:var(--in)} .m-off{fill:var(--faint)}
