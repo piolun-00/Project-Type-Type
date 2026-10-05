@@ -561,7 +561,8 @@ function renderEdit(rp, counts){
 
 function render(){
   if (state.booting) return;
-  const sheet = $('sheet'); const rp = roundParams();
+  const sheet = $('sheet'); sheet.classList.remove('boot-screen');
+  const rp = roundParams();
   const showC = state.showC, showO = state.showO;
   let paths = '', origs = '', marks = '', box, pxPerUnit;
   const counts = { end:0, out:0, in:0, off:0 };
@@ -1067,7 +1068,7 @@ function vectorDown(e, key){
   else if (!state.vsel.some(q => vkey(q) === key)) state.vsel = [s];
   const cons = curCons();
   vdrag = { id: e.pointerId, start: toFont(e), base: clone(cons), moved: false, corr: collectCorr(cons) };
-  document.querySelector('.stage').setPointerCapture(e.pointerId);
+  try { document.querySelector('.stage').setPointerCapture(e.pointerId); } catch (err) {}
   updatePanel(); schedule();
 }
 function vectorMove(e){
@@ -1345,7 +1346,11 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
 })();
 function fitText(){ const t = $('text'); t.style.height = 'auto'; t.style.height = Math.min(120, Math.max(36, t.scrollHeight)) + 'px'; }
 $('text').addEventListener('input', e => { state.text = e.target.value; fitText(); schedule(); autosave(); });
-$('showC').addEventListener('change', e => { state.showC = e.target.checked; schedule(); });
+$('showC').addEventListener('change', e => {
+  state.showC = e.target.checked;
+  if (!state.showC) state.sel = [];          // nie zostawiamy zaznaczenia, którego nie widać
+  updatePanel(); schedule();
+});
 $('showG').addEventListener('change', e => { state.showG = e.target.checked; schedule(); });
 $('showO').addEventListener('change', e => { state.showO = e.target.checked; schedule(); });
 $('viewSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return;
@@ -1407,7 +1412,7 @@ $('npReset').addEventListener('click', () => {
   cleanOvr(info.key); updatePanel(); schedule(); autosave();
 });
 $('npResetGlyph').addEventListener('click', () => { const key = 'g' + state.edit; if (!state.ovr[key]) return; checkpoint(); delete state.ovr[key]; updatePanel(); schedule(); autosave(); });
-$('vmodeSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; state.vmode = b.dataset.v; state.vsel = []; state.sel = []; syncUI(); updatePanel(); schedule(); });
+$('vmodeSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b || b.dataset.v === state.vmode) return; state.vmode = b.dataset.v; state.vsel = []; state.sel = []; syncUI(); updatePanel(); schedule(); });
 $('vSmooth').addEventListener('click', () => vectorSmooth(true));
 $('vSharp').addEventListener('click', () => vectorSmooth(false));
 $('vDel').addEventListener('click', vectorDelete);
@@ -1493,10 +1498,14 @@ async function loadBootFont(){
     return true;
   } catch (e) { return false; }
 }
-function bootMsg(t){ $('sheet').innerHTML = '<p class="boot"></p>'; $('sheet').firstChild.textContent = t; }
+function bootMsg(){
+  const sh = $('sheet');
+  sh.classList.add('boot-screen');           // plansza na całą szerokość, inaczej napis się nie mieści
+  sh.innerHTML = '<div class="boot"><span>Wczytywanie</span><span>glifów…</span></div>';
+}
 async function boot(){
   setLic(); syncUI();
-  bootMsg('Wczytuję glify…');
+  bootMsg();
   $('note').textContent = '';
   if (await loadBootFont()) return;
   state.booting = false;
