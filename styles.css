@@ -121,6 +121,7 @@ details[open] summary{margin-bottom:14px}
 .stage.dragging{cursor:grabbing; user-select:none}
 .sheet{background:var(--sheet); border-radius:4px; min-height:100%; min-width:100%; width:max-content; padding:36px; display:flex}
 .sheet svg{display:block; flex:none; margin:auto}
+.boot{margin:auto; color:var(--muted); font-family:var(--mono); font-size:13px}
 .glyph{fill:var(--glyph)}
 .orig{fill:none; stroke:var(--orig); stroke-width:1.5; vector-effect:non-scaling-stroke}
 .m-end{fill:var(--end)} .m-out{fill:var(--out)} .m-in{fill:var(--in)} .m-off{fill:var(--faint)}

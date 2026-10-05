@@ -31,6 +31,7 @@ const state = {
   ovr: {},          // klucz glifu → { scale, nodes:[{x,y,type,mode,amt,absorb}], force:[{x,y}] }
   hash: '',
   showC: true, showO: false,
+  booting: true,     // zanim wczytamy domyślny font, nie rysujemy nic migotliwego
 };
 const GRID_BASE = 76;      // bazowa wielkość komórki, od której liczymy liczbę kolumn
 const cache = new Map();   // klucz → analiza
@@ -551,12 +552,13 @@ function renderEdit(rp, counts){
                          : `<b>Kliknij węzeł</b>, żeby go zaznaczyć; dwuklik na linii dodaje węzeł.`)
     : state.sel.length
     ? `<b>Zaznaczone</b> — ustaw narożnik w panelu po lewej; Shift + klik dodaje kolejne.`
-    : `<b>Kliknij kolorową kropkę</b>, żeby edytować narożnik; Ctrl/Cmd + kółko przybliża, spacja + przeciągnięcie przesuwa.`;
+    : `<b>Kliknij kolorową kropkę</b>, żeby edytować narożnik; Ctrl/Cmd + kółko lub szczypanie przybliża, spacja + przeciągnięcie przesuwa.`;
   $('note').textContent = `${g.name || 'glif ' + g.index}, szerokość ${adv} j.`;
   return `<div class="edit-wrap"><div class="edit-main">${glyphSvg}</div><div class="edit-sample" style="height:${sampleH}px"><span class="edit-sample-label">${tip} Klik w literę zdania przełącza glif.</span>${sampleSvg}</div></div>`;
 }
 
 function render(){
+  if (state.booting) return;
   const sheet = $('sheet'); const rp = roundParams();
   const showC = state.showC, showO = state.showO;
   let paths = '', origs = '', marks = '', box, pxPerUnit;
@@ -1221,27 +1223,32 @@ function zoomCfg(){
 }
 // powiększenie z zachowaniem punktu pod kursorem (cx, cy względem obszaru podglądu)
 function scroller(){ return (state.mode === 'font' && state.view === 'edit' && document.querySelector('.edit-main')) || document.querySelector('.stage'); }
+// Przybliżanie idzie zawsze przez suwak Skala: szczypanie na gładziku, Ctrl + kółko,
+// klawisze +/− i sam suwak robią dokładnie to samo. Dzięki temu suwak zawsze pokazuje
+// aktualny stan, a gest nie walczy z własnym kotwiczeniem na kursorze.
 let zq = null;
-// wartość powiększenia z uwzględnieniem gestu, który czeka na przerysowanie
+// wartość z uwzględnieniem gestu, który czeka na przerysowanie
 const curZoom = () => (zq ? zq.v : zoomCfg().get());
-function zoomTo(v, cx, cy){
-  const z = zoomCfg();
-  v = Math.max(z.min, Math.min(z.max, v));
+function zoomTo(v){
+  const z = zoomCfg(), step = +$('size').step || 1;
+  v = Math.max(z.min, Math.min(z.max, Math.round(v / step) * step));
   if (v === curZoom()) return;
-  if (zq) { zq.v = v; if (cx != null) { zq.cx = cx; zq.cy = cy; } return; }
-  const st = scroller();
-  zq = { v, cx, cy, old: z.get(), sl: st.scrollLeft, stp: st.scrollTop };
+  $('size').value = v;                       // suwak rusza się od razu, razem z gestem
+  if (zq) { zq.v = v; return; }
+  const sc = scroller();
+  zq = { v, old: z.get(), sl: sc.scrollLeft, stp: sc.scrollTop };
   requestAnimationFrame(applyZoom);
 }
 function applyZoom(){
   const q = zq; zq = null; if (!q) return;
-  const z = zoomCfg(), st = scroller();
-  let { cx, cy } = q;
-  if (cx == null) { cx = st.clientWidth / 2; cy = st.clientHeight / 2; }
-  const r = q.v / q.old;
+  const z = zoomCfg(), sc0 = scroller();
+  const cx = sc0.clientWidth / 2, cy = sc0.clientHeight / 2, r = q.v / q.old;
   z.set(q.v); $('size').value = q.v; render();
+  // środek widoku zostaje na swoim miejscu; gdy zawartość mieści się w oknie,
+  // przewijanie i tak jest zerowe i wyśrodkowuje ją margin:auto
   const sc = scroller();
-  sc.scrollLeft = (q.sl + cx) * r - cx; sc.scrollTop = (q.stp + cy) * r - cy;
+  sc.scrollLeft = Math.max(0, (q.sl + cx) * r - cx);
+  sc.scrollTop = Math.max(0, (q.stp + cy) * r - cy);
 }
 $('size').addEventListener('input', e => zoomTo(+e.target.value));
 (() => {
@@ -1265,8 +1272,7 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
     const now = pinchState(), sc = scroller();
     sc.scrollLeft -= now.mid.x - pinch.mid.x;  // przesuwanie dwoma palcami
     sc.scrollTop -= now.mid.y - pinch.mid.y;
-    const r = scroller().getBoundingClientRect();
-    zoomTo(Math.round(curZoom() * now.dist / pinch.dist), now.mid.x - r.left, now.mid.y - r.top);
+    zoomTo(curZoom() * now.dist / pinch.dist);
     pinch = pinchState();                      // odczyt po zmianie powiększenia
   };
   st.addEventListener('pointerdown', e => {
@@ -1329,8 +1335,7 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
       return;
     }
     e.preventDefault();
-    const r = sc.getBoundingClientRect();
-    zoomTo(Math.round(curZoom() * Math.exp(-e.deltaY * 0.0025)), e.clientX - r.left, e.clientY - r.top);
+    zoomTo(curZoom() * Math.exp(-e.deltaY * 0.0025));
   }, { passive: false });
 })();
 function fitText(){ const t = $('text'); t.style.height = 'auto'; t.style.height = Math.min(120, Math.max(36, t.scrollHeight)) + 'px'; }
@@ -1432,8 +1437,8 @@ document.addEventListener('keydown', e => {
   if (state.mode !== 'font' || state.view !== 'edit' || typing) return;
   if (e.key === ' ' && !e.repeat) { e.preventDefault(); state.spacePan = true; document.querySelector('.stage').classList.add('space'); return; }
   if (e.key === ' ') { e.preventDefault(); return; }
-  if (!mod && (e.key === '+' || e.key === '=')) { e.preventDefault(); zoomTo(Math.round(curZoom() * 1.25)); return; }
-  if (!mod && (e.key === '-' || e.key === '_')) { e.preventDefault(); zoomTo(Math.round(curZoom() / 1.25)); return; }
+  if (!mod && (e.key === '+' || e.key === '=')) { e.preventDefault(); zoomTo(curZoom() * 1.25); return; }
+  if (!mod && (e.key === '-' || e.key === '_')) { e.preventDefault(); zoomTo(curZoom() / 1.25); return; }
   if (!mod && e.key === '0') { e.preventDefault(); zoomTo(100); return; }
   if (state.vmode === 'contour') {
     const step = e.shiftKey ? 10 : 1;
@@ -1475,6 +1480,7 @@ async function loadBootFont(){
     const font = opentype.parse(buf);
     state.srcTables = (() => { try { return RounderVF.readTables(new Uint8Array(buf)); } catch(e) { return null; } })();
     state.hash = 'font-' + hashBytes(new Uint8Array(buf));
+    state.booting = false;
     useFont(font, 'ABCAreal-Bold.ttf', true);
     state.view = 'glyphs';                   // start na siatce wszystkich glifów
     syncUI(); schedule();
@@ -1482,7 +1488,14 @@ async function loadBootFont(){
     return true;
   } catch (e) { return false; }
 }
-setLic();
-loadDemo();                                  // coś jest na ekranie od pierwszej klatki
-loadBootFont();                              // i podmieniamy na font, gdy się wczyta
+function bootMsg(t){ $('sheet').innerHTML = '<p class="boot"></p>'; $('sheet').firstChild.textContent = t; }
+async function boot(){
+  setLic(); syncUI();
+  bootMsg('Wczytuję glify…');
+  $('note').textContent = '';
+  if (await loadBootFont()) return;
+  state.booting = false;
+  loadDemo();                                // font niedostępny (np. otwarcie przez file://)
+}
+boot();
 })();
