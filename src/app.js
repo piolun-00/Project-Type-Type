@@ -640,6 +640,7 @@ function renderEdit(rp, counts){
     }));
     if (vec) marks += renderContourMarks(curCons(), asc, px);
     else if (contour && isBase && cmds.length) marks += renderContourMarks(toNodes(cmds), asc, px, true);
+    else if (!isBase && state.tool === 'pen' && cmds.length) marks += penSegs(toNodes(cmds), asc, px);
     // przy podziale podpisy linii metrycznych tylko raz, po lewej stronie
     const gridSvg = state.showG ? renderGrid(box, px, asc, split ? !isBase : false) : '';
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.floor(box.w * px)}" height="${Math.floor(box.h * px)}" viewBox="${box.x.toFixed(1)} ${box.y.toFixed(1)} ${box.w.toFixed(1)} ${box.h.toFixed(1)}" role="img" aria-label="${isBase ? 'Glif bazowy' : 'Edytowany glif'}">`
@@ -1422,6 +1423,19 @@ function vectorSetXY(axis, v){
   const d = Math.round(v) - Math.round(n[axis]); if (!d) return;
   vectorNudge(axis === 'x' ? d : 0, axis === 'y' ? d : 0);
 }
+// Same pola trafień odcinków — żeby piórem dało się wstawić węzeł także wtedy,
+// gdy pracujesz na narożnikach i konturu nie widać.
+function penSegs(cons, asc, px){
+  let s = '';
+  cons.forEach((C, ci) => C.nodes.forEach((a, i) => {
+    const b = C.nodes[(i + 1) % C.nodes.length];
+    const d = (a.out || b.in)
+      ? `M${a.x} ${asc - a.y}C${(a.out || a).x} ${asc - (a.out || a).y} ${(b.in || b).x} ${asc - (b.in || b).y} ${b.x} ${asc - b.y}`
+      : `M${a.x} ${asc - a.y}L${b.x} ${asc - b.y}`;
+    s += `<path class="v-seg" data-vs="${ci},${i}" d="${d}"/>`;
+  }));
+  return s;
+}
 function renderContourMarks(cons, asc, px, ro){
   let s = '';
   const r = 4.5 / px, hr = 3.6 / px, hit = 10 / px;
@@ -1614,7 +1628,7 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
     const vp = e.target.closest('[data-vp]');
     if (vp && !state.spacePan) { vectorDown(e, vp.dataset.vp); return; }
     // pióro: pojedynczy klik na linii wstawia węzeł (bez pióra trzeba dwukliku)
-    if (state.tool === 'pen' && state.vmode === 'contour' && !state.spacePan) {
+    if (state.tool === 'pen' && !state.spacePan) {
       const seg = e.target.closest('[data-vs]');
       if (seg) { const [ci, si] = seg.dataset.vs.split(',').map(Number), p = toFont(e); if (p) vectorInsert(ci, si, p); return; }
     }
@@ -1627,7 +1641,15 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
       return;
     }
     const hit = e.target.closest('[data-node]');
-    if (hit) { const [x, y] = hit.dataset.node.split(',').map(Number); selectNode({ x, y }, e.shiftKey); return; }
+    if (hit) {
+      const [x, y] = hit.dataset.node.split(',').map(Number);
+      if (state.tool === 'pen' && e.altKey) {
+        const f = nodeAtPos(editGlyph(), { x, y });
+        if (f) { state.vsel = [{ ci: f.ci, ni: f.ni, part: 'node' }]; vectorDelete(); return; }
+        toast('W tym miejscu nie ma węzła konturu'); return;
+      }
+      selectNode({ x, y }, e.shiftKey); return;
+    }
     // klik obok narożnika odznacza — bez tego zaznaczenie wisiało aż do Escape
     if (state.mode === 'font' && state.view === 'edit' && state.vmode === 'corners'
         && !state.spacePan && !e.shiftKey && (state.sel.length || state.selBase.length)) { state.sel = []; state.selBase = []; updatePanel(); schedule(); }
@@ -1703,16 +1725,19 @@ $('railShow').addEventListener('click', () => setRail(true));
 try { if (localStorage.getItem('type-type:rail') === '0') setRail(false); } catch(e) {}
 $('tbReset').addEventListener('click', () => { for (const k of ['end','out','in']) setParam(k, 0); });
 function setTool(t){
+  if (state.tool === t) return;
   state.tool = t;
   $('toolSeg').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.t === t));
   applyCursor();
+  schedule();            // pióro dokłada pola trafień odcinków, więc trzeba przerysować
 }
 // Kursor i ikona pokazują, co zrobi kliknięcie: samo pióro dodaje,
 // pióro z minusem odejmuje.
 function applyCursor(alt){
   const st = document.querySelector('.stage');
-  const piorem = state.mode === 'font' && state.view === 'edit' && state.vmode === 'contour' && state.tool === 'pen';
-  const zazn = state.mode === 'font' && state.view === 'edit' && state.vmode === 'contour' && !piorem;
+  const wEd = state.mode === 'font' && state.view === 'edit';
+  const piorem = wEd && state.tool === 'pen';
+  const zazn = wEd && !piorem;
   st.classList.toggle('tool-pen', piorem);
   st.classList.toggle('tool-select', zazn);
   if (alt !== undefined) st.classList.toggle('alt', !!alt && piorem);
@@ -1793,9 +1818,8 @@ function syncToolbar(){
   $('viewSeg').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x.dataset.v === state.view));
   const wEdycji = state.mode === 'font' && state.view === 'edit';
   $('vmodeSeg').hidden = !wEdycji; $('tbSepMode').hidden = !wEdycji;
-  const wKonturze = wEdycji && state.vmode === 'contour';
-  $('toolSeg').hidden = !wKonturze;
-  if (!wKonturze) state.tool = 'select';            // poza konturem zostaje zaznaczanie
+  $('toolSeg').hidden = !wEdycji;
+  if (!wEdycji) state.tool = 'select';
   $('toolSeg').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.t === state.tool));
   applyCursor();
   $('viewSeg').hidden = state.mode !== 'font';
@@ -2077,7 +2101,7 @@ document.addEventListener('keydown', e => {
   if (state.mode !== 'font' || state.view !== 'edit' || typing) return;
   if (e.key === ' ' && !e.repeat) { e.preventDefault(); state.spacePan = true; document.querySelector('.stage').classList.add('space'); return; }
   if (e.key === ' ') { e.preventDefault(); return; }
-  if (!mod && state.vmode === 'contour' && (k === 'v' || k === 'p')) {
+  if (!mod && (k === 'v' || k === 'p')) {
     e.preventDefault(); setTool(k === 'v' ? 'select' : 'pen'); return;
   }
   if (!mod && (e.key === '+' || e.key === '=')) { e.preventDefault(); zoomTo(curZoom() * 1.25); return; }
@@ -2131,6 +2155,7 @@ const BOOT_LINES = ['Wczytywanie', 'glifów…'];
 const BOOT_MS = 3000;        // ekran startowy trwa co najmniej tyle
 const MORPH_MS = 1150;       // z czego tyle zajmuje zaokrąglanie napisu
 function bootMsg(){
+  document.querySelector('.app').classList.add('booting');   // nic nie klikalne, póki się ładuje
   const sh = $('sheet');
   sh.classList.add('boot-screen');           // plansza na całą szerokość, inaczej napis się nie mieści
   sh.innerHTML = `<div class="boot"><span>${BOOT_LINES[0]}</span><span>${BOOT_LINES[1]}</span></div>`;
@@ -2182,12 +2207,14 @@ async function boot(){
   bootMsg();
   $('note').textContent = '';
   if (!(await loadBootFont())) {
+    document.querySelector('.app').classList.remove('booting');
     state.booting = false;
     loadDemo();                              // font niedostępny (np. otwarcie przez file://)
     return;
   }
   // ostatnia linia obrony: cokolwiek by się stało z animacją, aplikacja ma wstać
   await Promise.race([bootMorph(t0), new Promise((r) => setTimeout(r, BOOT_MS + MORPH_MS + 2000))]);
+  document.querySelector('.app').classList.remove('booting');
   state.booting = false;
   state.view = 'glyphs';                     // start na siatce wszystkich glifów
   syncUI(); render();
