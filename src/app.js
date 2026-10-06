@@ -1013,8 +1013,6 @@ function updatePanel(){
     $('vReset').hidden = !(E && E.path);
   }
   $('npTitle').textContent = `Glif ${g.unicode != null ? '„' + String.fromCodePoint(g.unicode) + '”' : (g.name || '')}`;
-  const gs = E && E.scale != null ? E.scale : 100;
-  $('s-gscale').value = gs; $('n-gscale').value = gs; paint($('s-gscale'));
   const sel = selectedJoints(info), corners = sel.filter(j => j.c), points = sel.filter(j => !j.c);
   $('npCtrls').hidden = !corners.length;
   if (corners.length) {
@@ -1854,12 +1852,6 @@ $('npMode').addEventListener('click', e => {
 const setAmt = (v) => { v = Math.max(0, Math.min(200, +v)); if (!isFinite(v)) return; setNodes(n => { n.amt = v; }); };
 $('s-namt').addEventListener('input', e => setAmt(e.target.value));
 $('n-namt').addEventListener('input', e => { if (e.target.value !== '') setAmt(e.target.value); });
-const setGScale = (v) => {
-  v = Math.max(0, Math.min(200, +v)); if (!isFinite(v)) return;
-  const key = 'g' + state.edit; checkpoint(); entry(key).scale = v; cleanOvr(key); updatePanel(); schedule(); autosave();
-};
-$('s-gscale').addEventListener('input', e => setGScale(e.target.value));
-$('n-gscale').addEventListener('input', e => { if (e.target.value !== '') setGScale(e.target.value); });
 $('npForce').addEventListener('click', () => {
   const info = editInfo(), sel = selectedJoints(info); checkpoint(); const E = entry(info.key);
   if ($('npForce').dataset.act === 'add') {
