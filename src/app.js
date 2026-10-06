@@ -407,6 +407,10 @@ function schedule(){ if (!raf) raf = requestAnimationFrame(()=>{ raf=0; render()
 function glyphItems(){
   const f = state.font, upm = f.unitsPerEm, items = [];
   const asc = f.ascender, desc = f.descender, lh = (asc - desc) * 1.12;
+  // Najwyższy i najniższy punkt całego fontu — akcenty (Å, Ă, Ồ) sięgają ponad ascender,
+  // a ogonki poniżej descendera. Bez zapasu górny rząd siatki i pierwsza linia tekstu są obcinane.
+  const hd = f.tables.head || {};
+  const yMax = isFinite(hd.yMax) ? hd.yMax : asc, yMin = isFinite(hd.yMin) ? hd.yMin : desc;
   if (state.view === 'text') {
     const lines = state.text.split('\n'); let y = asc, maxW = 0; const missing = new Set();
     for (const line of lines) {
@@ -421,7 +425,8 @@ function glyphItems(){
       }
       maxW = Math.max(maxW, x); y += lh;
     }
-    return { items, missing: [...missing], box: { x: 0, y: 0, w: Math.max(maxW, upm*0.5), h: lh*(lines.length-1) + (asc - desc) } };
+    const pT = Math.max(0, yMax - asc), pB = Math.max(0, desc - yMin);
+    return { items, missing: [...missing], box: { x: 0, y: -pT, w: Math.max(maxW, upm*0.5), h: lh*(lines.length-1) + (asc - desc) + pT + pB } };
   }
   // siatka glifów
   const max = Math.min(f.glyphs.length, 800);
@@ -435,7 +440,10 @@ function glyphItems(){
     const y = r*cell + (cell - (asc - desc))/2 + asc;
     items.push({ g, x, y });
   }
-  return { items, box: { x:0, y:0, w: cols*cell, h: Math.ceil(max/cols)*cell }, cellPx, cols, cell, truncated: f.glyphs.length > max };
+  // w komórce glif jest wyśrodkowany, więc część nadmiaru mieści się w jej zapasie
+  const slack = (cell - (asc - desc)) / 2;
+  const pT = Math.max(0, (yMax - asc) - slack), pB = Math.max(0, (desc - yMin) - slack);
+  return { items, box: { x:0, y:-pT, w: cols*cell, h: Math.ceil(max/cols)*cell + pT + pB }, cellPx, cols, cell, truncated: f.glyphs.length > max };
 }
 
 /* ================= widok edycji glifu ================= */
@@ -511,7 +519,19 @@ function renderEdit(rp, counts){
   const sampleSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${(sW * sPx).toFixed(0)}" height="${(sH * sPx).toFixed(0)}" viewBox="0 0 ${sW.toFixed(1)} ${sH.toFixed(1)}"><g class="glyph">${sPaths}</g></svg>`;
   const sampleH = Math.ceil(sH * sPx + 62);
   // glif: wyśrodkowany i dopasowany do wolnego miejsca
-  const m = upm * 0.12, gbox = { x: -m, y: -m * 0.5, w: adv + 2 * m, h: H + m };
+  // Kadr musi objąć i linie metryczne, i rzeczywisty zasięg glifu — inaczej akcenty
+  // wychodzące ponad ascender (Ă, Ồ) albo ogonki poniżej descendera są obcinane.
+  let top = asc, bot = desc, left = 0, right = adv;
+  const gc0 = glyphCmds(g);
+  if (gc0.length) {
+    const b = cmdsBox([gc0]);
+    if (isFinite(b.x) && isFinite(b.y)) {
+      top = Math.max(top, b.y + b.h); bot = Math.min(bot, b.y);
+      left = Math.min(left, b.x); right = Math.max(right, b.x + b.w);
+    }
+  }
+  const m = upm * 0.12;
+  const gbox = { x: left - m, y: (asc - top) - m * 0.5, w: (right - left) + 2 * m, h: (top - bot) + m };
   // wymiary obszaru glifu (scena bez marginesów, minus pasek ze zdaniem)
   const areaW = Math.max(200, st.clientWidth - 56), areaH = Math.max(160, st.clientHeight - 56 - sampleH);
   const px = Math.min((areaW - 48) / gbox.w, (areaH - 48) / gbox.h) * state.ezoom / 100;
