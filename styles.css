@@ -146,7 +146,7 @@ details[open] summary{margin-bottom:14px}
 .edit-main > svg{flex:none; display:block}
 .stage.edit-mode.space .edit-main{cursor:grab}
 .stage.edit-mode.space.dragging .edit-main{cursor:grabbing}
-.edit-sample{flex:none; box-sizing:border-box; border-top:1px solid var(--line); padding:14px 20px 16px; display:flex; flex-direction:column; align-items:flex-start; gap:8px; overflow:hidden}
+.edit-sample{flex:none; box-sizing:border-box; border-top:1px solid var(--line); padding:12px 20px 14px; display:flex; flex-direction:column; align-items:flex-start; overflow:hidden}
 .edit-sample svg{max-width:100%; height:auto}
 .edit-tip{position:absolute; top:12px; left:14px; right:14px; font-size:13px; color:var(--muted); pointer-events:none; z-index:2}
 .edit-tip span{display:inline-block; background:color-mix(in srgb, var(--sheet) 92%, transparent); padding:5px 9px; border-radius:7px; box-shadow:0 0 0 1px var(--line)}
@@ -180,14 +180,15 @@ details[open] summary{margin-bottom:14px}
 .chip[aria-current=true]{background:var(--ink); color:var(--sheet); border-color:var(--ink)}
 .editbar{display:inline-flex; align-items:center; gap:6px}
 .editbar input{width:56px; text-align:center; padding:7px 6px; border:0; border-radius:8px; background:var(--field)}
-.editbar .gname{font-size:12.5px; color:var(--muted); min-width:80px}
+.editbar .gname{font-size:12.5px; color:var(--muted); width:80px; flex:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .iconbtn{border:1px solid var(--line); background:var(--sheet); border-radius:7px; width:30px; height:30px; cursor:pointer}
 .iconbtn:hover{border-color:var(--ink)}
 .restore{margin-top:10px; font-size:12.5px; padding:10px; border-radius:8px; background:var(--field)}
 .restore .btn-row{margin-top:8px}
 .restore .btn{padding:6px 10px; font-size:12.5px}
-.foot{display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:10px 18px; font-size:12.5px; color:var(--muted); border-top:1px solid var(--line); background:var(--rail)}
+.foot{display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:10px 18px; font-size:12.5px; color:var(--muted); border-top:1px solid var(--line); background:var(--rail); flex-wrap:nowrap; height:39px; overflow:hidden}
 .count b{font-weight:600; font-variant-numeric:tabular-nums}
+.foot > span{white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .count .c-end{color:var(--end)} .count .c-out{color:var(--out)} .count .c-in{color:var(--in)}
 
 .toast{position:fixed; left:50%; bottom:calc(20px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%); background:var(--ink); color:var(--sheet);

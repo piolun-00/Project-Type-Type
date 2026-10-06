@@ -516,22 +516,26 @@ function renderEdit(rp, counts){
     }
   });
   const sH = lh * (lines.length - 1) + H;
+  // Pasek ze zdaniem rezerwuje miejsce zawsze na dwie linie, nawet gdy rysujemy jedną.
+  // Inaczej dla znaków bez pangramu (np. „.”) na glif zostawało więcej miejsca
+  // i ten sam font pokazywał się w innej skali przy różnych znakach.
+  const sHres = lh + H;
   const sampleSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${(sW * sPx).toFixed(0)}" height="${(sH * sPx).toFixed(0)}" viewBox="0 0 ${sW.toFixed(1)} ${sH.toFixed(1)}"><g class="glyph">${sPaths}</g></svg>`;
-  const sampleH = Math.ceil(sH * sPx + 62);
+  const sampleH = Math.ceil(sHres * sPx + 30);   // bez belki z podpowiedzią pasek jest niższy
   // glif: wyśrodkowany i dopasowany do wolnego miejsca
-  // Kadr musi objąć i linie metryczne, i rzeczywisty zasięg glifu — inaczej akcenty
-  // wychodzące ponad ascender (Ă, Ồ) albo ogonki poniżej descendera są obcinane.
-  let top = asc, bot = desc, left = 0, right = adv;
-  const gc0 = glyphCmds(g);
-  if (gc0.length) {
-    const b = cmdsBox([gc0]);
-    if (isFinite(b.x) && isFinite(b.y)) {
-      top = Math.max(top, b.y + b.h); bot = Math.min(bot, b.y);
-      left = Math.min(left, b.x); right = Math.max(right, b.x + b.w);
-    }
-  }
-  const m = upm * 0.12;
-  const gbox = { x: left - m, y: (asc - top) - m * 0.5, w: (right - left) + 2 * m, h: (top - bot) + m };
+  // Kadr ma STAŁY rozmiar dla całego fontu, żeby każdy glif był w tej samej skali
+  // i przełączanie znaków niczym nie szarpało. Liczymy go z metryk całego fontu
+  // (yMax/yMin, najszersza szerokość), więc obejmuje też akcenty w Ă, Å, Ồ i ogonki
+  // poniżej descendera. Ruchomy jest tylko środek: kadr centrujemy na szerokości
+  // bieżącego glifu, dzięki czemu glif zawsze stoi na środku.
+  const hd = f.tables.head || {}, hh = f.tables.hhea || {};
+  const yMax = isFinite(hd.yMax) ? hd.yMax : asc, yMin = isFinite(hd.yMin) ? hd.yMin : desc;
+  const xMin = isFinite(hd.xMin) ? hd.xMin : 0, xMax = isFinite(hd.xMax) ? hd.xMax : upm;
+  const advMax = isFinite(hh.advanceWidthMax) ? hh.advanceWidthMax : upm;
+  const top = Math.max(asc, yMax), bot = Math.min(desc, yMin);
+  const m = upm * 0.18;
+  const gw = Math.max(advMax, xMax - Math.min(0, xMin)) + 2 * m, gh = (top - bot) + 1.4 * m;
+  const gbox = { x: adv / 2 - gw / 2, y: (asc - top) - m * 0.5, w: gw, h: gh };
   // wymiary obszaru glifu (scena bez marginesów, minus pasek ze zdaniem)
   const areaW = Math.max(200, st.clientWidth - 56), areaH = Math.max(160, st.clientHeight - 56 - sampleH);
   const px = Math.min((areaW - 48) / gbox.w, (areaH - 48) / gbox.h) * state.ezoom / 100;
@@ -569,14 +573,8 @@ function renderEdit(rp, counts){
   const gridSvg = state.showG ? renderGrid(box, px, asc) : '';
   const glyphSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.floor(box.w * px)}" height="${Math.floor(box.h * px)}" viewBox="${box.x.toFixed(1)} ${box.y.toFixed(1)} ${box.w.toFixed(1)} ${box.h.toFixed(1)}" role="img" aria-label="Edytowany glif">`
     + gridSvg + `<g class="glyph">${paths}</g>` + (state.showO ? `<g class="orig">${origs}</g>` : '') + `<g>${marks}</g></svg>`;
-  const tip = contour
-    ? (state.vsel.length ? `<b>Przeciągnij</b> węzeł lub uchwyt, Shift trzyma ruch w pionie, poziomie lub pod 45°, Alt rozrywa uchwyty, Backspace usuwa.`
-                         : `<b>Kliknij węzeł</b>, żeby go zaznaczyć; dwuklik na linii dodaje węzeł.`)
-    : state.sel.length
-    ? `<b>Zaznaczone</b> — ustaw narożnik w panelu po lewej; Shift + klik dodaje kolejne.`
-    : `<b>Kliknij kolorową kropkę</b>, żeby edytować narożnik; Ctrl/Cmd + kółko lub szczypanie przybliża, spacja + przeciągnięcie przesuwa.`;
   $('note').textContent = `${g.name || 'glif ' + g.index}, szerokość ${adv} j.`;
-  return `<div class="edit-wrap"><div class="edit-main">${glyphSvg}</div><div class="edit-sample" style="height:${sampleH}px"><span class="edit-sample-label">${tip} Klik w literę zdania przełącza glif.</span>${sampleSvg}</div></div>`;
+  return `<div class="edit-wrap"><div class="edit-main">${glyphSvg}</div><div class="edit-sample" style="height:${sampleH}px">${sampleSvg}</div></div>`;
 }
 
 function render(){
