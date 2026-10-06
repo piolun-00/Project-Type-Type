@@ -23,6 +23,7 @@
   <symbol id="ic-orig" viewBox="0 0 16 16"><rect x="5.4" y="5.4" width="8.2" height="8.2" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M2.4 10.6v-7a1.2 1.2 0 0 1 1.2-1.2h7" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="2.2 1.8"/></symbol>
   <symbol id="ic-smooth" viewBox="0 0 16 16"><path d="M1.5 12.5c3.5 0 3-9 13-9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="6.6" cy="7.2" r="2.2" fill="currentColor"/></symbol>
   <symbol id="ic-sharp" viewBox="0 0 16 16"><path d="M1.5 13.5 7.5 3l7 10.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/><rect x="5.5" y="1" width="4" height="4" rx=".5" fill="currentColor"/></symbol>
+  <symbol id="ic-text" viewBox="0 0 16 16"><path d="M2.6 3.2h10.8M8 3.6v9.2M5.9 12.9h4.2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
   <symbol id="ic-del" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.4 8h5.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
 </svg>
 <div class="app">
@@ -196,8 +197,7 @@
     <div class="bar">
       <button class="btn" id="openFile">Dodaj font</button>
       <div class="seg" id="viewSeg" role="group" aria-label="Widok">
-        <button data-v="text" aria-pressed="true">Tekst</button>
-        <button data-v="glyphs" aria-pressed="false">Wszystkie glify</button>
+        <button data-v="glyphs" aria-pressed="true">Wszystkie glify</button>
         <button data-v="edit" aria-pressed="false">Edycja glifu</button>
       </div>
       <div class="editbar" id="editBar" hidden>
@@ -218,9 +218,12 @@
           </div>
         </div>
       </div>
-      <textarea class="textin" id="text" rows="1" aria-label="Tekst podglądu" spellcheck="false"></textarea>
     </div>
     <div class="stage"><div class="sheet" id="sheet"></div></div>
+    <div class="preview" id="preview" hidden>
+      <textarea class="textin" id="text" rows="1" aria-label="Tekst podglądu" spellcheck="false"></textarea>
+      <div class="preview-art" id="previewArt"></div>
+    </div>
     <div class="toolbar" id="toolbar">
       <div class="tb-group" id="tbTools">
 <div class="seg icons" id="vmodeSeg" role="group" aria-label="Tryb edycji">
@@ -233,6 +236,10 @@
         <button class="tb-btn" id="tgG" aria-pressed="true" title="Siatka" aria-label="Siatka"><svg class="ic" aria-hidden="true"><use href="#ic-grid"/></svg></button>
         <button class="tb-btn" id="tgC" aria-pressed="true" title="Znaczniki narożników" aria-label="Znaczniki"><svg class="ic" aria-hidden="true"><use href="#ic-marks"/></svg></button>
         <button class="tb-btn" id="tgO" aria-pressed="false" title="Oryginał pod spodem" aria-label="Oryginał"><svg class="ic" aria-hidden="true"><use href="#ic-orig"/></svg></button>
+      </div>
+      <div class="tb-sep"></div>
+      <div class="tb-group">
+        <button class="tb-btn" id="tgT" aria-pressed="false" title="Podgląd tekstu pod kadrem" aria-label="Podgląd tekstu"><svg class="ic" aria-hidden="true"><use href="#ic-text"/></svg></button>
       </div>
       <div class="tb-sep"></div>
       <label class="tb-size">Skala <input type="range" id="size" min="40" max="400" step="2" style="--c:var(--ink)"></label>

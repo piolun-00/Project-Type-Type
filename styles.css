@@ -315,3 +315,15 @@ section h2{margin:0 0 10px; font-size:12px; letter-spacing:.01em}
   font-size:12.5px; color:var(--muted); margin-bottom:8px}
 .pop-row input{width:56px; text-align:center; padding:6px; border:0; border-radius:8px; background:var(--field); font-size:15px}
 #baseBtn[aria-expanded=true]{border-color:var(--ink)}
+
+/* pasek z podglądem tekstu pod kadrem */
+.preview{flex:none; display:flex; align-items:center; gap:12px; padding:8px 16px;
+  border-top:1px solid var(--line); background:var(--sheet); overflow:hidden}
+.preview .textin{flex:none; width:190px; height:30px; min-height:0; resize:none; padding:6px 8px;
+  border:1px solid var(--line); border-radius:8px; background:var(--field); font-size:12.5px}
+.preview-art{flex:1; min-width:0; overflow:hidden}
+.preview-art svg{display:block; max-width:100%; height:auto}
+.preview-art .hl{fill:var(--end)}
+.preview-art [data-gi]{cursor:pointer}
+.preview-art [data-gi]:not(.hl):hover{fill:var(--muted)}
+.toolbar{bottom:calc(var(--previewH, 0px) + 54px)}

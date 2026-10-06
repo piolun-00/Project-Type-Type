@@ -14,7 +14,8 @@ const state = {
   font: null, fontFile: '',
   shapes: [], box: null, svgName: '',
   ref: 100, strokeAuto: 8,
-  view: 'text',
+  view: 'glyphs',
+  showT: false,     // pasek z podglądem tekstu pod kadrem
   text: 'Zażółć gęślą jaźń\nĄĆĘŁŃÓŚŹŻ Hamburgefonstiv 0123',
   union: true,
   size: 110,
@@ -404,6 +405,38 @@ function refreshDetection(){
   detKey = [state.p.angleMin, state.p.endTol, state.p.endMax, state.p.merge, state.union ? 1 : 0].join('|');
 }
 
+/* ================= pasek podglądu tekstu pod kadrem ================= */
+let prevCache = { key: '', html: '', h: 0 };
+function renderPreview(rp){
+  const el = $('preview'), art = $('previewArt');
+  const on = state.showT && state.mode === 'font' && state.font;
+  el.hidden = !on;
+  if (!on) { document.documentElement.style.setProperty('--previewH', '0px'); return; }
+  const f = state.font, upm = f.unitsPerEm, asc = f.ascender, H = asc - f.descender;
+  const edytuje = state.view === 'edit';
+  const g = edytuje ? editGlyph() : null;
+  const lines = edytuje ? sampleLines(g) : state.text.split('\n').slice(0, 3);
+  const sPx = 30 / upm, lh = H * 1.05;
+  const key = state.loadId + '|' + (edytuje ? g.index : 't') + '|' + lines.join('\u0001') + '|'
+            + JSON.stringify(rp) + '|' + detKey + '|' + JSON.stringify(state.ovr);
+  if (prevCache.key !== key) {
+    let d = '', w = 0;
+    lines.forEach((t, li) => {
+      const L = layoutLine(f, t, asc + li * lh); w = Math.max(w, L.w);
+      for (const it of L.items) {
+        const gg = it.g, gc = glyphCmds(gg); if (!gc.length) continue;
+        d += `<path data-gi="${gg.index}"${g && gg.index === g.index ? ' class="hl"' : ''} d="${R.toPathData(roundShape('g' + gg.index, gc, 'nonzero', rp).cm, it.x, it.y, 1, true, 1)}"/>`;
+      }
+    });
+    const h = lh * (lines.length - 1) + H;
+    prevCache = { key, h: Math.ceil(h * sPx),
+      html: `<svg xmlns="http://www.w3.org/2000/svg" width="${(w * sPx).toFixed(0)}" height="${(h * sPx).toFixed(0)}" viewBox="0 0 ${w.toFixed(1)} ${h.toFixed(1)}"><g class="glyph">${d}</g></svg>` };
+    art.innerHTML = prevCache.html;
+  }
+  $('text').style.display = edytuje ? 'none' : '';     // w edycji pokazujemy pangram, nie własny tekst
+  document.documentElement.style.setProperty('--previewH', el.offsetHeight + 'px');
+}
+
 /* ================= render ================= */
 let raf = 0;
 function schedule(){ if (!raf) raf = requestAnimationFrame(()=>{ raf=0; render(); }); }
@@ -451,7 +484,6 @@ function glyphItems(){
 }
 
 /* ================= widok edycji glifu ================= */
-let sampleCache = { key: '', paths: '', w: 0 };
 function editGlyph(){ return state.font.glyphs.get(state.edit) }
 // Szerokość, od której liczymy stały kadr. Nie bierzemy najszerszego glifu w foncie,
 // bo jeden wyjątek (w ABC Areal 1500 j. przy literze A równej 718) rozpycha ramkę
@@ -526,32 +558,6 @@ function renderEdit(rp, counts){
   const H = asc - desc, adv = g.advanceWidth || upm * 0.5, key = 'g' + g.index;
   const st = document.querySelector('.stage');
   const contour = state.vmode === 'contour';
-  // Przykładowe zdanie (na dole). Ma własny, stały stopień, więc przy przybliżaniu
-  // ani przewijaniu się nie zmienia — a kosztuje czterdzieści kilka zaokrągleń glifów
-  // na każdą klatkę. Dlatego budujemy je tylko wtedy, gdy naprawdę się zmieniło.
-  const lines = sampleLines(g), sPx = 26 / upm, lh = H * 1.05;
-  const sKey = state.loadId + '|' + g.index + '|' + JSON.stringify(rp) + '|' + detKey + '|' + JSON.stringify(state.ovr);
-  let sPaths, sW, sReused = false;
-  if (sampleCache.key === sKey) { sPaths = sampleCache.paths; sW = sampleCache.w; sReused = true; }
-  else {
-    sPaths = ''; sW = 0;
-    lines.forEach((t, li) => {
-      const L = layoutLine(f, t, asc + li * lh); sW = Math.max(sW, L.w);
-      for (const it of L.items) {
-        const gg = it.g, gc = glyphCmds(gg); if (!gc.length) continue;
-        sPaths += `<path data-gi="${gg.index}"${gg.index === g.index ? ' class="hl"' : ''} d="${R.toPathData(roundShape('g' + gg.index, gc, 'nonzero', rp).cm, it.x, it.y, 1, true, 1)}"/>`;
-      }
-    });
-    sampleCache = { key: sKey, paths: sPaths, w: sW };
-  }
-  const sH = lh * (lines.length - 1) + H;
-  // Pasek ze zdaniem rezerwuje miejsce zawsze na dwie linie, nawet gdy rysujemy jedną.
-  // Inaczej dla znaków bez pangramu (np. „.”) na glif zostawało więcej miejsca
-  // i ten sam font pokazywał się w innej skali przy różnych znakach.
-  const sHres = lh + H;
-  const sampleSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${(sW * sPx).toFixed(0)}" height="${(sH * sPx).toFixed(0)}" viewBox="0 0 ${sW.toFixed(1)} ${sH.toFixed(1)}"><g class="glyph">${sPaths}</g></svg>`;
-  const sampleH = Math.ceil(sHres * sPx + 18);
-  document.documentElement.style.setProperty('--sampleH', sampleH + 'px');
   // glif: wyśrodkowany i dopasowany do wolnego miejsca
   // Kadr ma STAŁY rozmiar dla całego fontu, żeby każdy glif był w tej samej skali
   // i przełączanie znaków niczym nie szarpało. Liczymy go z metryk całego fontu
@@ -571,7 +577,7 @@ function renderEdit(rp, counts){
   const baseIdx = state.base[state.edit];
   const bg = (baseIdx != null && baseIdx !== g.index && f.glyphs.get(baseIdx)) || null;
   const split = !!bg;
-  const areaW = Math.max(200, st.clientWidth - 8), areaH = Math.max(160, st.clientHeight - 8 - sampleH);
+  const areaW = Math.max(200, st.clientWidth - 8), areaH = Math.max(160, st.clientHeight - 8);
   const paneW = split ? (areaW - 14) / 2 : areaW;
   const px = Math.min((paneW - 48) / gw, (areaH - 48) / gh) * state.ezoom / 100;
   const hitR = 13 / Math.max(px, 1e-6), mR = 5.5 / Math.max(px, 1e-6);
@@ -641,7 +647,7 @@ function renderEdit(rp, counts){
       + `<div class="pane-wrap"><span class="pane-lbl">Edytujesz — ${etyk(g)}</span><div class="pane"><div class="pane-box">${pane(g, false)}</div></div></div>`
     : pane(g, false);
   $('note').textContent = `${g.name || 'glif ' + g.index}, szerokość ${adv} j.`;
-  return { main: glyphSvg, sample: sampleSvg, sampleH, reused: sReused };
+  return { main: glyphSvg };
 }
 
 function render(){
@@ -662,17 +668,16 @@ function render(){
       if (showC) marks += `<circle class="m-${t}" cx="${(tx + c.v.x).toFixed(1)}" cy="${(flip ? ty - c.v.y : ty + c.v.y).toFixed(1)}" r="${r.toFixed(2)}"/>`;
     }));
   };
+  renderPreview(rp);
   const editing = state.mode === 'font' && state.view === 'edit';
   sheet.classList.toggle('editing', editing); sheet.parentElement.classList.toggle('edit-mode', editing);
-  if (!editing) document.documentElement.style.setProperty('--sampleH', '0px');
   if (editing) {
     const src0 = sheet.querySelector('.edit-main .pane') || sheet.querySelector('.edit-main');
     const keep = src0 ? [src0.scrollLeft, src0.scrollTop] : null;
     const R2 = renderEdit(rp, counts);
     const wrap = sheet.querySelector('.edit-wrap'), em = wrap && wrap.querySelector('.edit-main');
-    if (em && R2.reused) em.innerHTML = R2.main;      // tylko rysunek, zdanie zostaje nietknięte
-    else sheet.innerHTML = `<div class="edit-wrap"><div class="edit-main">${R2.main}</div>`
-                         + `<div class="edit-sample" style="height:${R2.sampleH}px">${R2.sample}</div></div>`;
+    if (em) em.innerHTML = R2.main;
+    else sheet.innerHTML = `<div class="edit-wrap"><div class="edit-main">${R2.main}</div></div>`;
     lastPane = null;
     if (keep) for (const el of (sheet.querySelectorAll('.edit-main .pane').length ? sheet.querySelectorAll('.edit-main .pane') : sheet.querySelectorAll('.edit-main')))
       { el.scrollLeft = keep[0]; el.scrollTop = keep[1]; }
@@ -744,7 +749,7 @@ function useShapes(shapes, source, name){
 function useFont(font, name, boot){
   state.mode='font'; state.source = boot ? 'boot' : 'font'; state.font=font; state.fontFile=name; state.shapes=[];
   state.ovr = {}; state.base = {}; state.sel = []; hist.undo.length = 0; hist.redo.length = 0; state.edit = firstGlyph();
-  if (state.view === 'edit') state.view = 'text';
+  if (state.view === 'edit') state.view = 'glyphs';
   state.ref = font.unitsPerEm; state.loadId = (state.loadId||0)+1; cache.clear(); refreshDetection(); syncUI();
   const fam = (font.names.fontFamily && (font.names.fontFamily.en || Object.values(font.names.fontFamily)[0])) || name.replace(/\.\w+$/,'');
   $('famName').value = fam + ' Rounded';
@@ -1460,7 +1465,7 @@ function syncUI(){
   $('expLocked').hidden = !locked; $('expNote').hidden = locked;
   $('expFont').disabled = locked; $('expVF').disabled = locked;
   $('famName').disabled = locked;
-  $('text').style.display = state.mode === 'font' && state.view === 'text' ? '' : 'none';
+
   $('viewSeg').style.display = state.mode === 'font' ? '' : 'none';
   $('viewSeg').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x.dataset.v === state.view));
   $('editBar').hidden = !(state.mode === 'font' && state.view === 'edit');
@@ -1654,7 +1659,7 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
     if (!(e.ctrlKey || e.metaKey)) {
       // przesuwanie dwoma palcami po gładziku: w edycji glifu przewijamy pole rysunku,
       // bo scena ma wtedy overflow:hidden i sama by się nie przewinęła
-      if (sc !== st && !e.target.closest('.edit-sample')) {
+      if (sc !== st && !e.target.closest('.preview')) {
         e.preventDefault(); sc.scrollLeft += e.deltaX; sc.scrollTop += e.deltaY;
       }
       return;
@@ -1671,8 +1676,15 @@ $('text').addEventListener('input', e => { state.text = e.target.value; fitText(
 // Pływający pasek steruje tymi samymi polami wyboru co wcześniej — logika
 // aplikacji została nietknięta, zmienił się tylko sposób klikania.
 const TB = [['tgG', 'showG'], ['tgC', 'showC'], ['tgO', 'showO']];
+$('tgT').addEventListener('click', () => {
+  state.showT = !state.showT;
+  $('tgT').setAttribute('aria-pressed', state.showT);
+  syncUI(); schedule();
+});
 function syncToolbar(){
   for (const [b, c] of TB) $(b).setAttribute('aria-pressed', $(c).checked);
+  $('tgT').setAttribute('aria-pressed', state.showT);
+  $('tgT').hidden = state.mode !== 'font';
   $('tgG').hidden = !(state.mode === 'font' && state.view === 'edit');
 }
 for (const [b, c] of TB) $(b).addEventListener('click', () => {
@@ -1904,10 +1916,14 @@ $('sheet').addEventListener('dblclick', e => {
   const t = e.target.closest('[data-vs]'); if (!t) return;
   const [ci, si] = t.dataset.vs.split(',').map(Number), p = toFont(e); if (p) vectorInsert(ci, si, p);
 });
+$('preview').addEventListener('click', e => {
+  const sg = e.target.closest('.preview-art [data-gi]');
+  if (!sg || state.mode !== 'font') return;
+  const i = +sg.dataset.gi;
+  if (state.view === 'edit') { if (i !== state.edit) setEdit(i); } else enterEdit(i);
+});
 $('sheet').addEventListener('click', e => {
   if (document.querySelector('.stage').dataset.dragged) return;
-  const sg = e.target.closest('.edit-sample [data-gi]');
-  if (sg && state.mode === 'font' && state.view === 'edit') { const i = +sg.dataset.gi; if (i !== state.edit) setEdit(i); return; }
   const t = e.target.closest('[data-gi]'); if (t && state.mode === 'font' && state.view !== 'edit') enterEdit(+t.dataset.gi);
 });
 document.addEventListener('keyup', e => { if (e.key === ' ') { state.spacePan = false; document.querySelector('.stage').classList.remove('space'); } });
