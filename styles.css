@@ -295,8 +295,12 @@ section h2{margin:0 0 10px; font-size:12px; letter-spacing:.01em}
 .tb-chip.t-in .dot{background:var(--in)} .tb-chip.t-off .dot{background:var(--faint)}
 .tb-chip.t-auto .dot{background:transparent; border:1.5px solid var(--faint)}
 /* skala w prawym dolnym rogu, dyskretnie */
-.scale-corner{position:absolute; right:14px; bottom:calc(var(--previewH, 0px) + 52px); z-index:19;
-  display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:11px; color:var(--faint);
+/* prawy dolny róg: wyzerowanie i skala, dyskretnie, poza główną belką */
+.corner{position:absolute; right:14px; bottom:calc(var(--previewH, 0px) + 52px); z-index:19;
+  display:flex; align-items:center; gap:6px}
+.corner .tb-btn{color:var(--faint); background:color-mix(in srgb, var(--sheet) 85%, transparent)}
+.corner .tb-btn:hover{color:var(--ink); background:var(--field)}
+.scale-corner{display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:11px; color:var(--faint);
   background:color-mix(in srgb, var(--sheet) 85%, transparent); padding:4px 8px; border-radius:8px}
 .scale-corner input[type=range]{width:72px}
 .scale-corner:hover{color:var(--muted)}
@@ -380,7 +384,7 @@ section h2{margin:0 0 10px; font-size:12px; letter-spacing:.01em}
 /* Ekran ładowania: interfejs jest przygaszony i nieklikalny, dopóki font
    się nie wczyta. Sam napis zostaje w pełnym kontraście. */
 .app.booting .rail, .app.booting .bar, .app.booting .toolbar,
-.app.booting .preview, .app.booting .scale-corner, .app.booting .rail-show{
+.app.booting .preview, .app.booting .corner, .app.booting .rail-show{
   opacity:.35; pointer-events:none; user-select:none}
 .app.booting .stage{pointer-events:none}
 .app.booting .boot{opacity:1}

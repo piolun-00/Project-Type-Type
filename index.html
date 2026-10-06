@@ -236,23 +236,25 @@
           <button data-v="edit" aria-pressed="false" title="Edycja glifu" aria-label="Edycja glifu"><svg class="ic"><use href="#ic-a-fill"/></svg></button>
         </div>
         <div class="tb-sep" id="tbSepMode"></div>
-        <div class="seg icons" id="vmodeSeg" role="group" aria-label="Tryb edycji">
-            <button data-v="corners" aria-pressed="true" title="Narożniki — ustawiasz zaokrąglenie" aria-label="Narożniki"><svg class="ic" aria-hidden="true"><use href="#ic-a-fill"/></svg></button>
-            <button data-v="contour" aria-pressed="false" title="Kontur — przesuwasz węzły i uchwyty" aria-label="Kontur"><svg class="ic" aria-hidden="true"><use href="#ic-a-line"/></svg></button>
-          </div>
         <div class="seg icons" id="toolSeg" role="group" aria-label="Narzędzie" hidden>
           <button data-t="select" aria-pressed="true" title="Zaznaczanie (V)" aria-label="Zaznaczanie"><svg class="ic"><use href="#ic-arrow"/></svg></button>
           <button data-t="pen" aria-pressed="false" title="Pióro (P) — klik na linii dodaje węzeł, Option + klik w węzeł usuwa" aria-label="Pióro"><svg class="ic"><use href="#ic-pen" id="penIcon"/></svg></button>
         </div>
         <div class="tb-sep"></div>
+        <div class="seg icons" id="vmodeSeg" role="group" aria-label="Tryb edycji">
+            <button data-v="corners" aria-pressed="true" title="Narożniki — ustawiasz zaokrąglenie" aria-label="Narożniki"><svg class="ic" aria-hidden="true"><use href="#ic-a-fill"/></svg></button>
+            <button data-v="contour" aria-pressed="false" title="Kontur — przesuwasz węzły i uchwyty" aria-label="Kontur"><svg class="ic" aria-hidden="true"><use href="#ic-a-line"/></svg></button>
+          </div>
+        <div class="tb-sep"></div>
         <div class="tb-group">
           <button class="tb-btn" id="tgT" aria-pressed="false" title="Podgląd tekstu pod kadrem" aria-label="Podgląd tekstu"><svg class="ic"><use href="#ic-text"/></svg></button>
         </div>
-        <div class="tb-sep"></div>
-        <button class="tb-btn" id="tbReset" title="Wyzeruj zaokrąglenie" aria-label="Wyzeruj zaokrąglenie"><svg class="ic"><use href="#ic-reset"/></svg></button>
       </div>
     </div>
-    <label class="scale-corner" title="Skala podglądu">Skala <input type="range" id="size" min="40" max="400" step="2" style="--c:var(--ink)"></label>
+    <div class="corner">
+      <button class="tb-btn" id="tbReset" title="Wyzeruj zaokrąglenie" aria-label="Wyzeruj zaokrąglenie"><svg class="ic"><use href="#ic-reset"/></svg></button>
+      <label class="scale-corner" title="Skala podglądu">Skala <input type="range" id="size" min="40" max="400" step="2" style="--c:var(--ink)"></label>
+    </div>
     <div class="foot">
       <span class="count" id="count"></span>
       <span id="note"></span>
