@@ -117,6 +117,11 @@ details[open] summary{margin-bottom:14px}
 .size input[type=range]::-moz-range-track{height:4px; border:0; background:var(--line)}
 .size input[type=range]::-webkit-slider-thumb{width:14px; height:14px; margin-top:-5px; border-color:var(--ink)}
 
+/* Interfejs jest nieselektywny: przeciągnięcie po kadrze zaznaczało napisy
+   w panelu i na pasku, co blokowało edycję węzłów. Pola tekstowe zostają. */
+.app{user-select:none; -webkit-user-select:none}
+.app input, .app textarea{user-select:text; -webkit-user-select:text}
+
 .stage{flex:1; overflow:auto; padding:0; cursor:grab; touch-action:none; overscroll-behavior:contain;
   user-select:none; -webkit-user-select:none}
 .stage.dragging{cursor:grabbing; user-select:none}

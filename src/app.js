@@ -1607,6 +1607,7 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
   const marqStart = (e) => {
     const pane = (e.target.closest && e.target.closest('.pane')) || document.querySelector('.edit-main') || st;
     marq = { x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, id: e.pointerId, on: false, pane, add: e.shiftKey };
+    e.preventDefault();                        // bez tego przeciąganie zaznacza napisy interfejsu
   };
   const marqRect = () => ({ l: Math.min(marq.x0, marq.x), t: Math.min(marq.y0, marq.y),
                             r: Math.max(marq.x0, marq.x), b: Math.max(marq.y0, marq.y) });
