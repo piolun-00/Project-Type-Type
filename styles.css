@@ -278,10 +278,29 @@ section h2{margin:0 0 10px; font-size:12px; letter-spacing:.01em}
 .main{position:relative}
 .ic{width:17px; height:17px; display:block}
 .toolbar{pointer-events:none; position:absolute; left:50%; transform:translateX(-50%); z-index:20;
-  bottom:calc(var(--sampleH, 0px) + 54px);
-  display:flex; align-items:center; gap:8px; padding:6px;
+  bottom:calc(var(--previewH, 0px) + 54px);
+  display:flex; flex-direction:column; align-items:center; gap:8px;
+  background:transparent; border:0; padding:0; box-shadow:none}
+.tb-main, .tb-ctx{pointer-events:auto; display:flex; align-items:center; gap:8px; padding:6px;
   background:var(--sheet); border:1px solid var(--line); border-radius:12px;
   box-shadow:0 8px 26px rgba(0,0,0,.14)}
+.tb-ctx{gap:6px; animation:tbIn .12s ease-out}
+@keyframes tbIn{from{opacity:0; transform:translateY(4px)}to{opacity:1; transform:none}}
+.tb-ctx .tb-label{font-family:var(--mono); font-size:11.5px; color:var(--muted); padding:0 4px}
+.tb-chip{height:28px; display:flex; align-items:center; gap:6px; padding:0 9px; border:1px solid var(--line);
+  border-radius:8px; background:var(--sheet); font-size:12px; color:var(--ink); cursor:pointer}
+.tb-chip:hover{border-color:var(--ink)}
+.tb-chip[aria-pressed=true]{background:var(--ink); color:var(--sheet); border-color:var(--ink)}
+.tb-chip .dot{width:8px; height:8px; border-radius:50%; flex:none}
+.tb-chip.t-end .dot{background:var(--end)} .tb-chip.t-out .dot{background:var(--out)}
+.tb-chip.t-in .dot{background:var(--in)} .tb-chip.t-off .dot{background:var(--faint)}
+.tb-chip.t-auto .dot{background:transparent; border:1.5px solid var(--faint)}
+/* skala w prawym dolnym rogu, dyskretnie */
+.scale-corner{position:absolute; right:14px; bottom:calc(var(--previewH, 0px) + 50px); z-index:19;
+  display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:11px; color:var(--faint);
+  background:color-mix(in srgb, var(--sheet) 85%, transparent); padding:4px 8px; border-radius:8px}
+.scale-corner input[type=range]{width:72px}
+.scale-corner:hover{color:var(--muted)}
 .tb-group, .tb-sep, .tb-size{pointer-events:auto}
 .tb-group{display:flex; align-items:center; gap:2px}
 .tb-sep{width:1px; align-self:stretch; background:var(--line); margin:2px 2px}
@@ -326,4 +345,3 @@ section h2{margin:0 0 10px; font-size:12px; letter-spacing:.01em}
 .preview-art .hl{fill:var(--end)}
 .preview-art [data-gi]{cursor:pointer}
 .preview-art [data-gi]:not(.hl):hover{fill:var(--muted)}
-.toolbar{bottom:calc(var(--previewH, 0px) + 54px)}

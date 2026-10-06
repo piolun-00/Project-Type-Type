@@ -1047,6 +1047,7 @@ function updatePanel(){
     ob.querySelector('span').textContent = `${orph.length} ${orph.length === 1 ? 'korekta nie trafia' : 'korekt nie trafia'} w żaden narożnik — prawdopodobnie zmieniły się progi wykrywania.`;
     $('npOrph').onclick = () => { checkpoint(); const Ee = state.ovr[info.key]; Ee.nodes = Ee.nodes.filter(n => !orph.includes(n)); cleanOvr(info.key); updatePanel(); schedule(); autosave(); };
   } else { ob.textContent = ''; ob.className = 'msg'; }
+  renderCtxBar();
   renderBase();
   const keys = Object.keys(state.ovr).filter(k => k[0] === 'g' && hasOvr(k));
   $('npListWrap').hidden = !keys.length;
@@ -1335,6 +1336,9 @@ function toFont(e){
 }
 function vectorDown(e, key){
   const [ci, ni, part] = key.split(','); const s = { ci: +ci, ni: +ni, part };
+  // Alt/Option + klik w węzeł usuwa go. Na uchwytach Alt dalej rozrywa gładkość,
+  // więc te dwa gesty sobie nie wchodzą w drogę.
+  if (part === 'node' && e.altKey) { state.vsel = [s]; vectorDelete(); return; }
   if (e.shiftKey) { const i = state.vsel.findIndex(q => vkey(q) === key); if (i >= 0) state.vsel.splice(i, 1); else state.vsel.push(s); }
   else if (!state.vsel.some(q => vkey(q) === key)) state.vsel = [s];
   const cons = curCons();
@@ -1676,12 +1680,58 @@ $('text').addEventListener('input', e => { state.text = e.target.value; fitText(
 // Pływający pasek steruje tymi samymi polami wyboru co wcześniej — logika
 // aplikacji została nietknięta, zmienił się tylko sposób klikania.
 const TB = [['tgG', 'showG'], ['tgC', 'showC'], ['tgO', 'showO']];
+$('tbAdd').addEventListener('click', openFileModal);
+$('tbReset').addEventListener('click', () => { for (const k of ['end','out','in']) setParam(k, 0); });
 $('tgT').addEventListener('click', () => {
   state.showT = !state.showT;
   $('tgT').setAttribute('aria-pressed', state.showT);
   syncUI(); schedule();
 });
+const TYPY = [['auto','Auto'],['end','Zakończenie'],['out','Zewnętrzny'],['in','Wewnętrzny'],['off','Ostry']];
+// Drugi rząd paska. Pokazuje narzędzia pasujące do tego, co jest w tej chwili
+// zaznaczone — i znika, gdy nie ma czego robić.
+function renderCtxBar(){
+  const ctx = $('tbCtx');
+  if (!(state.mode === 'font' && state.view === 'edit')) { ctx.hidden = true; return; }
+  if (state.vmode === 'contour') {
+    const n = state.vsel.filter(s => s.part === 'node').length;
+    if (!n) { ctx.hidden = true; return; }
+    ctx.innerHTML = '<span class="tb-label"></span>';
+    ctx.firstChild.textContent = n === 1 ? '1 węzeł' : n + ' węzły';
+    for (const [id, ic, t] of [['cxSmooth','smooth','Wygładź'],['cxSharp','sharp','Wyprostuj'],['cxDel','del','Usuń węzeł']]) {
+      const b = document.createElement('button');
+      b.className = 'tb-btn'; b.id = id; b.title = t; b.setAttribute('aria-label', t);
+      b.innerHTML = '<svg class="ic"><use href="#ic-' + ic + '"/></svg>';
+      ctx.appendChild(b);
+    }
+    $('cxSmooth').onclick = () => vectorSmooth(true);
+    $('cxSharp').onclick = () => vectorSmooth(false);
+    $('cxDel').onclick = vectorDelete;
+    ctx.hidden = false; return;
+  }
+  const info = editInfo(), sel = selectedJoints(info).filter(j => j.c);
+  if (!sel.length) { ctx.hidden = true; return; }
+  const akt = sel[0].n ? sel[0].n.type : 'auto';
+  const maEnd = sel.every(j => j.c.endLen > 0);
+  ctx.innerHTML = '<span class="tb-label"></span>';
+  ctx.firstChild.textContent = sel.length === 1 ? '1 narożnik' : sel.length + ' narożniki';
+  for (const [v, label] of TYPY) {
+    if (v === 'end' && !maEnd) continue;
+    const b = document.createElement('button');
+    b.className = 'tb-chip t-' + v; b.setAttribute('aria-pressed', v === akt);
+    b.innerHTML = '<span class="dot"></span>';
+    b.appendChild(document.createTextNode(label));
+    b.onclick = () => setNodes((nn) => { nn.type = v; });
+    ctx.appendChild(b);
+  }
+  ctx.hidden = false;
+}
 function syncToolbar(){
+  renderCtxBar();
+  $('viewSeg').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x.dataset.v === state.view));
+  const wEdycji = state.mode === 'font' && state.view === 'edit';
+  $('vmodeSeg').hidden = !wEdycji; $('tbSepMode').hidden = !wEdycji;
+  $('viewSeg').hidden = state.mode !== 'font';
   for (const [b, c] of TB) $(b).setAttribute('aria-pressed', $(c).checked);
   $('tgT').setAttribute('aria-pressed', state.showT);
   $('tgT').hidden = state.mode !== 'font';
@@ -1711,7 +1761,6 @@ function openFileModal(){
   setTimeout(() => $('drop').focus(), 0);
 }
 function closeFileModal(){ fileModal.hidden = true; }
-$('openFile').addEventListener('click', openFileModal);
 $('fileModalClose').addEventListener('click', closeFileModal);
 $('fileModalBg').addEventListener('click', closeFileModal);
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !fileModal.hidden) { e.stopPropagation(); closeFileModal(); } }, true);
