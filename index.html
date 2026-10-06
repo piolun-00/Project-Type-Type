@@ -77,12 +77,6 @@
       </div>
       <div id="baseWrap" hidden>
         <h3 class="np-h3">Baza glifu</h3>
-        <p class="hint" id="baseHint" style="margin-top:0" title="Dla znaków z akcentem podpowiadam literę bazową. Kopiowanie i wklejanie działa też przez Cmd/Ctrl + C oraz Cmd/Ctrl + V.">Glif, z którego czerpiesz.</p>
-        <div class="base-pick">
-          <input id="baseChar" type="text" maxlength="4" spellcheck="false" placeholder="znak" aria-label="Glif bazowy">
-          <button class="btn" id="baseSuggest" hidden></button>
-          <button class="linkbtn" id="baseClear" hidden>Wyczyść</button>
-        </div>
         <div class="msg" id="baseMsg"></div>
         <div id="baseNodeWrap" hidden>
           <span class="lbl" style="display:block; font-size:12.5px; color:var(--muted); margin:10px 0 6px" id="baseNodeLbl">Zaznaczony węzeł</span>
@@ -211,6 +205,18 @@
         <input id="gChar" type="text" maxlength="4" aria-label="Znak do edycji" spellcheck="false">
         <button class="iconbtn" id="gNext" aria-label="Następny glif">›</button>
         <span class="gname" id="gName"></span>
+        <div class="pop-wrap">
+          <button class="btn" id="baseBtn" aria-expanded="false" title="Glif, z którego czerpiesz korekty">Baza</button>
+          <div class="pop" id="basePop" hidden>
+            <label class="pop-row">Glif bazowy
+              <input id="baseChar" type="text" maxlength="4" spellcheck="false" placeholder="znak" aria-label="Glif bazowy">
+            </label>
+            <div class="btn-row">
+              <button class="btn" id="baseSuggest" hidden></button>
+              <button class="linkbtn" id="baseClear" hidden>Wyczyść</button>
+            </div>
+          </div>
+        </div>
       </div>
       <textarea class="textin" id="text" rows="1" aria-label="Tekst podglądu" spellcheck="false"></textarea>
     </div>

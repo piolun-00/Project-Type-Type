@@ -305,3 +305,13 @@ section h2{margin:0 0 10px; font-size:12px; letter-spacing:.01em}
 .fold > summary + *{margin-top:10px}
 /* pusty stan panelu właściwości */
 .empty-note{color:var(--muted); font-size:12.5px; margin:4px 0 0}
+
+/* okienko przy przycisku w górnej belce */
+.pop-wrap{position:relative}
+.pop{position:absolute; top:calc(100% + 6px); left:0; z-index:40; min-width:180px;
+  background:var(--sheet); border:1px solid var(--line); border-radius:10px; padding:10px;
+  box-shadow:0 10px 30px rgba(0,0,0,.16)}
+.pop-row{display:flex; align-items:center; justify-content:space-between; gap:10px;
+  font-size:12.5px; color:var(--muted); margin-bottom:8px}
+.pop-row input{width:56px; text-align:center; padding:6px; border:0; border-radius:8px; background:var(--field); font-size:15px}
+#baseBtn[aria-expanded=true]{border-color:var(--ink)}

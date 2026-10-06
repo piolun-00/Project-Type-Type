@@ -1096,6 +1096,7 @@ function renderBase(){
   $('baseWrap').hidden = !on;
   if (!on) return;
   const g = editGlyph(), bi = state.base[state.edit];
+  baseBtnLabel();
   const sug = suggestBase(g);
   const sb = $('baseSuggest');
   if (sug && bi == null) { sb.hidden = false; sb.textContent = 'Użyj „' + sug.ch + '”'; sb.dataset.i = sug.i; }
@@ -1192,6 +1193,20 @@ function renderClip(){
   if (c.x != null) pos.textContent = Math.round(c.x) + ', ' + Math.round(c.y);
   w.hidden = false;
 }
+function baseBtnLabel(){
+  const bi = state.base[state.edit];
+  const bg = bi != null && state.font && state.font.glyphs.get(bi);
+  $('baseBtn').textContent = bg ? 'Baza: ' + glyphLab(bg).replace(/[„”]/g, '') : 'Baza';
+  $('baseBtn').classList.toggle('primary', !!bg);
+}
+function openBasePop(){
+  const g = editGlyph(), sug = suggestBase(g);
+  // okienko pokazuje domyślną literę od razu, żeby dało się ją tylko poprawić
+  if (state.base[state.edit] == null && sug) setBase(sug.i);
+  $('basePop').hidden = false; $('baseBtn').setAttribute('aria-expanded', 'true');
+  setTimeout(() => { $('baseChar').focus(); $('baseChar').select(); }, 0);
+}
+function closeBasePop(){ $('basePop').hidden = true; $('baseBtn').setAttribute('aria-expanded', 'false'); }
 function setBase(i){
   if (i == null) delete state.base[state.edit]; else state.base[state.edit] = i;
   renderBase(); schedule(); autosave();
@@ -1768,6 +1783,11 @@ $('baseChar').addEventListener('input', e => {
   const i = state.font.charToGlyphIndex(ch);
   if (i > 0) { e.target.value = ch; setBase(i); } else toast('Tego znaku nie ma w foncie');
 });
+$('baseBtn').addEventListener('click', () => ($('basePop').hidden ? openBasePop() : closeBasePop()));
+document.addEventListener('pointerdown', (e) => {
+  if ($('basePop').hidden) return;
+  if (!e.target.closest('#basePop') && !e.target.closest('#baseBtn')) closeBasePop();
+}, true);
 $('baseSuggest').addEventListener('click', e => setBase(+e.currentTarget.dataset.i));
 $('baseApply').addEventListener('click', () => {
   if (state.sel.length !== 1) return;
@@ -1867,7 +1887,7 @@ $('baseCopy').addEventListener('click', copyNode);
 $('basePaste').addEventListener('click', pasteNode);
 $('basePastePos').addEventListener('click', pasteGeom);
 $('clipClear').addEventListener('click', () => { state.clip = null; updatePanel(); });
-$('baseClear').addEventListener('click', () => setBase(null));
+$('baseClear').addEventListener('click', () => { setBase(null); closeBasePop(); });
 $('gPrev').addEventListener('click', () => stepGlyph(-1));
 $('gNext').addEventListener('click', () => stepGlyph(1));
 $('gChar').addEventListener('input', e => {
