@@ -526,7 +526,7 @@ function renderEdit(rp, counts){
   const st = document.querySelector('.stage');
   const contour = state.vmode === 'contour';
   // przykładowe zdanie (na dole)
-  const lines = sampleLines(g), sPx = 36 / upm, lh = H * 1.05;
+  const lines = sampleLines(g), sPx = 26 / upm, lh = H * 1.05;
   let sPaths = '', sW = 0;
   lines.forEach((t, li) => {
     const L = layoutLine(f, t, asc + li * lh); sW = Math.max(sW, L.w);
@@ -541,7 +541,7 @@ function renderEdit(rp, counts){
   // i ten sam font pokazywał się w innej skali przy różnych znakach.
   const sHres = lh + H;
   const sampleSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${(sW * sPx).toFixed(0)}" height="${(sH * sPx).toFixed(0)}" viewBox="0 0 ${sW.toFixed(1)} ${sH.toFixed(1)}"><g class="glyph">${sPaths}</g></svg>`;
-  const sampleH = Math.ceil(sHres * sPx + 30);   // bez belki z podpowiedzią pasek jest niższy
+  const sampleH = Math.ceil(sHres * sPx + 18);
   // glif: wyśrodkowany i dopasowany do wolnego miejsca
   // Kadr ma STAŁY rozmiar dla całego fontu, żeby każdy glif był w tej samej skali
   // i przełączanie znaków niczym nie szarpało. Liczymy go z metryk całego fontu
@@ -561,7 +561,7 @@ function renderEdit(rp, counts){
   const baseIdx = state.base[state.edit];
   const bg = (baseIdx != null && baseIdx !== g.index && f.glyphs.get(baseIdx)) || null;
   const split = !!bg;
-  const areaW = Math.max(200, st.clientWidth - 56), areaH = Math.max(160, st.clientHeight - 56 - sampleH);
+  const areaW = Math.max(200, st.clientWidth - 8), areaH = Math.max(160, st.clientHeight - 8 - sampleH);
   const paneW = split ? (areaW - 14) / 2 : areaW;
   const px = Math.min((paneW - 48) / gw, (areaH - 48) / gh) * state.ezoom / 100;
   const hitR = 13 / Math.max(px, 1e-6), mR = 5.5 / Math.max(px, 1e-6);
@@ -1104,13 +1104,14 @@ function renderBase(){
   msg.className = 'msg';
   // kontekstowo: pokazujemy wyłącznie to, co baza ma w miejscu zaznaczonego węzła
   const wiersz = (r, el) => {
-    el.className = 'base-row m-' + r.t;
+    el.className = 'base-row m-' + (r.t || 'off');
     el.innerHTML = '<span class="dot"></span>';
     const pos = document.createElement('span'); pos.className = 'pos';
     pos.textContent = Math.round(r.v.x) + ', ' + Math.round(r.v.y);
-    const typ = document.createElement('span'); typ.textContent = TYPE_PL[r.t] || r.t;
+    const typ = document.createElement('span');
+    typ.textContent = r.t == null ? 'nie jest narożnikiem' : (TYPE_PL[r.t] || r.t);
     const val = document.createElement('span'); val.className = 'val';
-    val.textContent = r.n ? (r.t === 'off' ? 'ostry' : amtLabel(r.n)) : 'bez korekty';
+    val.textContent = r.t == null ? 'samo położenie' : (r.n ? (r.t === 'off' ? 'ostry' : amtLabel(r.n)) : 'bez korekty');
     el.append(pos, typ, val);
   };
   const row = $('baseNode'), copyBtn = $('baseCopy'), applyBtn = $('baseApply');
@@ -1119,13 +1120,14 @@ function renderBase(){
     // zaznaczony węzeł po stronie bazy — można z niego skopiować ustawienie
     let r = D.rows.find((q) => near(q.v, state.selBase[0]));
     // w trybie Kontur węzeł może nie być narożnikiem — wtedy niesie samo położenie
-    if (!r && state.vmode === 'contour') r = { v: state.selBase[0], n: null, t: 'off', samoPolozenie: true };
+    if (!r && state.vmode === 'contour') r = { v: state.selBase[0], n: null, t: null };
     $('baseNodeLbl').textContent = 'Zaznaczony węzeł w bazie';
     if (!r) { msg.textContent = 'Baza: glif ' + nazwa + '. Ten punkt nie jest narożnikiem.'; box.hidden = true; }
     else {
       wiersz(r, row);
       copyBtn.hidden = false; applyBtn.hidden = true;
       copyBtn.disabled = false;
+      copyBtn.textContent = r.t == null ? 'Kopiuj położenie' : 'Kopiuj ustawienie';
       copyBtn.title = 'Cmd/Ctrl + C';
       box.hidden = false;
     }
