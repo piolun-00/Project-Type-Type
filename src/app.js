@@ -491,7 +491,7 @@ function fontMetrics(){
   const cap = os2.sCapHeight > 0 ? os2.sCapHeight : bbY('H', true);
   return { asc: f.ascender, desc: f.descender, xh, cap };
 }
-function renderGrid(box, px, asc){
+function renderGrid(box, px, asc, bezPodpisow){
   const steps = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000];
   const minor = steps.find(s => s * px >= 9) || 1000;
   const major = minor * 5 * px >= 45 ? minor * 5 : minor * 10;
@@ -500,7 +500,7 @@ function renderGrid(box, px, asc){
   for (let x = Math.ceil(x0 / minor) * minor; x <= x1; x += minor) (x % major === 0 ? (majorD += `M${x} ${box.y}V${box.y + box.h}`) : (minorD += `M${x} ${box.y}V${box.y + box.h}`));
   for (let y = Math.ceil(fy0 / minor) * minor; y <= fy1; y += minor) { const sy = asc - y; (y % major === 0 ? (majorD += `M${x0} ${sy}H${x1}`) : (minorD += `M${x0} ${sy}H${x1}`)); }
   let s = `<path class="grid-minor" d="${minorD}"/><path class="grid-major" d="${majorD}"/>`;
-  // linie metryczne z podpisami
+  // linie metryczne z podpisami (na panelu bazy podpisy pomijamy, żeby się nie dublowały)
   const M = fontMetrics(), fs = 11 / px;
   const lines = [['wys. wersalików', M.cap], ['x-height', M.xh], ['ascender', M.asc], ['descender', M.desc]];
   const seen = new Set();
@@ -508,9 +508,11 @@ function renderGrid(box, px, asc){
     if (v == null || !isFinite(v) || seen.has(Math.round(v))) continue; seen.add(Math.round(v));
     const sy = asc - v;
     s += `<line class="metric" x1="${x0}" x2="${x1}" y1="${sy}" y2="${sy}"/>`;
+    if (bezPodpisow) continue;
     s += `<text class="metric-label" x="${(x0 + 4 / px).toFixed(2)}" y="${(sy - 4 / px).toFixed(2)}" font-size="${fs.toFixed(2)}">${name} ${Math.round(v)}</text>`;
   }
   s += `<line class="metric baseline" x1="${x0}" x2="${x1}" y1="${asc}" y2="${asc}"/>`;
+  if (bezPodpisow) return `<g aria-hidden="true">${s}</g>`;
   s += `<text class="metric-label" x="${(x0 + 4 / px).toFixed(2)}" y="${(asc - 4 / px).toFixed(2)}" font-size="${fs.toFixed(2)}">linia bazowa 0</text>`;
   s += `<text class="metric-label" x="${(x1 - 4 / px).toFixed(2)}" y="${(box.y + box.h - 4 / px).toFixed(2)}" font-size="${fs.toFixed(2)}" text-anchor="end">siatka ${minor} j., linie główne co ${major} j.</text>`;
   return `<g aria-hidden="true">${s}</g>`;
@@ -520,6 +522,7 @@ function renderEdit(rp, counts){
   const f = state.font, upm = f.unitsPerEm, asc = f.ascender, desc = f.descender, g = editGlyph();
   const H = asc - desc, adv = g.advanceWidth || upm * 0.5, key = 'g' + g.index;
   const st = document.querySelector('.stage');
+  const contour = state.vmode === 'contour';
   // przykładowe zdanie (na dole)
   const lines = sampleLines(g), sPx = 54 / upm, lh = H * 1.05;
   let sPaths = '', sW = 0;
@@ -550,52 +553,77 @@ function renderEdit(rp, counts){
   const top = Math.max(asc, yMax), bot = Math.min(desc, yMin);
   const m = upm * 0.18;
   const gw = widthRef() + 2 * m, gh = (top - bot) + 1.4 * m;
-  const gbox = { x: adv / 2 - gw / 2, y: (asc - top) - m * 0.5, w: gw, h: gh };
-  // wymiary obszaru glifu (scena bez marginesów, minus pasek ze zdaniem)
+  // Podgląd bazy obok edytowanego glifu. Obie połowy mają tę samą skalę i ten sam
+  // kadr, a że baza i glif pochodny mają identyczne współrzędne, jedno zaznaczenie
+  // podświetla się samo po obu stronach — nic nie trzeba dopasowywać.
+  const baseIdx = state.base[state.edit];
+  const bg = (baseIdx != null && baseIdx !== g.index && f.glyphs.get(baseIdx)) || null;
+  const split = !!bg && !contour;              // w trybie Kontur edytujesz jeden glif, podział tylko myli
   const areaW = Math.max(200, st.clientWidth - 56), areaH = Math.max(160, st.clientHeight - 56 - sampleH);
-  const px = Math.min((areaW - 48) / gbox.w, (areaH - 48) / gbox.h) * state.ezoom / 100;
-  // pole rysunku wypełnia cały obszar (siatka do krawędzi), glif w środku; po przybliżeniu rośnie i się przewija
-  const fw = Math.max(gbox.w, areaW / px), fh = Math.max(gbox.h, areaH / px);
-  const box = { x: gbox.x + gbox.w / 2 - fw / 2, y: gbox.y + gbox.h / 2 - fh / 2, w: fw, h: fh };
-  // Pole rysunku może urosnąć, żeby objąć glif szerszy niż kadr odniesienia.
-  // Skala tego nie dotyczy — liczy się z gbox, więc zostaje stała.
-  const gcb = glyphCmds(g).length ? cmdsBox([glyphCmds(g)]) : null;
-  if (gcb && isFinite(gcb.x)) {
-    const L = Math.min(box.x, gcb.x - m * 0.5), R = Math.max(box.x + box.w, gcb.x + gcb.w + m * 0.5);
-    const T = Math.min(box.y, (asc - (gcb.y + gcb.h)) - m * 0.5), B = Math.max(box.y + box.h, (asc - gcb.y) + m * 0.5);
-    box.x = L; box.w = R - L; box.y = T; box.h = B - T;
-  }
+  const paneW = split ? (areaW - 14) / 2 : areaW;
+  const px = Math.min((paneW - 48) / gw, (areaH - 48) / gh) * state.ezoom / 100;
   const hitR = 13 / Math.max(px, 1e-6), mR = 5.5 / Math.max(px, 1e-6);
-  let paths = '', origs = '', marks = '';
-  let an = null, M = null;
-  const contour = state.vmode === 'contour';
-  if (glyphCmds(g).length) {
-    const r = roundShape(key, glyphCmds(g), 'nonzero', rp); an = contour ? null : r.an; M = r.M;
-    paths += `<path${contour ? ' class="v-ghost"' : ''} d="${R.toPathData(r.cm, 0, asc, 1, true, 2)}"/>`;
-    if (state.showO) origs += `<path d="${R.toPathData(g.path.commands, 0, asc, 1, true, 2)}"/>`;
-  }
-  if (!state.showG) marks += `<line class="guide" x1="${box.x}" x2="${box.x + box.w}" y1="${asc}" y2="${asc}"/>`;
-  marks += `<line class="guide" x1="0" x2="0" y1="${box.y}" y2="${box.y + box.h}"/><line class="guide" x1="${adv}" x2="${adv}" y1="${box.y}" y2="${box.y + box.h}"/>`;
-  if (an) an.forEach((C, ci) => C.joints.forEach((J, k) => {
-    const c = C.corners[k], v = J.v; if (!v) return;
-    const cx = v.x.toFixed(2), cy = (asc - v.y).toFixed(2);
-    const n = M && M.nodeAt[ci][k];
-    if (c) { const t = effType(n, c); counts[t] = (counts[t] || 0) + 1; }
-    if (!state.showC) return;                  // podgląd bez znaczników — czysty kształt
-    if (c) {
-      const t = effType(n, c);
-      marks += `<circle class="m-${t}" cx="${cx}" cy="${cy}" r="${mR.toFixed(2)}"/>`;
-      if (n || c.forced) marks += `<circle class="m-halo" cx="${cx}" cy="${cy}" r="${(mR*1.9).toFixed(2)}"/><circle class="m-ovr" cx="${cx}" cy="${cy}" r="${(mR*1.9).toFixed(2)}"/>`;
-    } else {
-      marks += `<circle class="m-pt" cx="${cx}" cy="${cy}" r="${(mR*0.7).toFixed(2)}"/>`;
+  // Pionowy zakres jest WSPÓLNY dla obu paneli — liczony z sumy obu glifów.
+  // Inaczej każdy panel rozsuwałby kadr pod swój własny kształt i litery
+  // stałyby na różnych wysokościach, czyli nie dałoby się ich porównać.
+  const vExt = (() => {
+    const fh0 = Math.max(gh, areaH / px);
+    let T = ((asc - top) - m * 0.5) + gh / 2 - fh0 / 2, B = T + fh0;
+    for (const gl of (split ? [bg, g] : [g])) {
+      const c = glyphCmds(gl); if (!c.length) continue;
+      const b = cmdsBox([c]); if (!isFinite(b.x)) continue;
+      T = Math.min(T, (asc - (b.y + b.h)) - m * 0.5);
+      B = Math.max(B, (asc - b.y) + m * 0.5);
     }
-    if (state.sel.some(q => near(q, v))) marks += `<circle class="m-halo" cx="${cx}" cy="${cy}" r="${(mR*2.6).toFixed(2)}"/><circle class="m-sel" cx="${cx}" cy="${cy}" r="${(mR*2.6).toFixed(2)}"/>`;
-    marks += `<circle class="m-hit" data-node="${v.x.toFixed(2)},${v.y.toFixed(2)}" cx="${cx}" cy="${cy}" r="${hitR.toFixed(2)}"/>`;
-  }));
-  if (contour) marks += renderContourMarks(curCons(), asc, px);
-  const gridSvg = state.showG ? renderGrid(box, px, asc) : '';
-  const glyphSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.floor(box.w * px)}" height="${Math.floor(box.h * px)}" viewBox="${box.x.toFixed(1)} ${box.y.toFixed(1)} ${box.w.toFixed(1)} ${box.h.toFixed(1)}" role="img" aria-label="Edytowany glif">`
-    + gridSvg + `<g class="glyph">${paths}</g>` + (state.showO ? `<g class="orig">${origs}</g>` : '') + `<g>${marks}</g></svg>`;
+    return { y: T, h: B - T };
+  })();
+
+  const pane = (gl, isBase) => {
+    const a = gl.advanceWidth || upm * 0.5, k = 'g' + gl.index, cmds = glyphCmds(gl);
+    const gbox = { x: a / 2 - gw / 2, y: (asc - top) - m * 0.5, w: gw, h: gh };
+    const fw = Math.max(gbox.w, paneW / px);
+    const box = { x: gbox.x + gbox.w / 2 - fw / 2, y: vExt.y, w: fw, h: vExt.h };
+    const cb = cmds.length ? cmdsBox([cmds]) : null;
+    if (cb && isFinite(cb.x)) {   // w poziomie każdy panel może urosnąć pod swój glif
+      const L = Math.min(box.x, cb.x - m * 0.5), R = Math.max(box.x + box.w, cb.x + cb.w + m * 0.5);
+      box.x = L; box.w = R - L;
+    }
+    const vec = contour && !isBase;
+    let paths = '', origs = '', marks = '', an = null, M = null;
+    if (cmds.length) {
+      const r = roundShape(k, cmds, 'nonzero', rp);
+      an = vec ? null : r.an; M = r.M;
+      paths += `<path${vec ? ' class="v-ghost"' : ''} d="${R.toPathData(r.cm, 0, asc, 1, true, 2)}"/>`;
+      if (state.showO) origs += `<path d="${R.toPathData(gl.path.commands, 0, asc, 1, true, 2)}"/>`;
+    }
+    if (!state.showG) marks += `<line class="guide" x1="${box.x}" x2="${box.x + box.w}" y1="${asc}" y2="${asc}"/>`;
+    marks += `<line class="guide" x1="0" x2="0" y1="${box.y}" y2="${box.y + box.h}"/><line class="guide" x1="${a}" x2="${a}" y1="${box.y}" y2="${box.y + box.h}"/>`;
+    if (an) an.forEach((C, ci) => C.joints.forEach((J, k2) => {
+      const c = C.corners[k2], v = J.v; if (!v) return;
+      const cx = v.x.toFixed(2), cy = (asc - v.y).toFixed(2);
+      const n = M && M.nodeAt[ci][k2];
+      if (c && !isBase) { const t = effType(n, c); counts[t] = (counts[t] || 0) + 1; }
+      if (!state.showC) return;
+      if (c) {
+        const t = effType(n, c);
+        marks += `<circle class="m-${t}" cx="${cx}" cy="${cy}" r="${mR.toFixed(2)}"/>`;
+        if (n || c.forced) marks += `<circle class="m-halo" cx="${cx}" cy="${cy}" r="${(mR*1.9).toFixed(2)}"/><circle class="m-ovr" cx="${cx}" cy="${cy}" r="${(mR*1.9).toFixed(2)}"/>`;
+      } else if (!isBase) {
+        marks += `<circle class="m-pt" cx="${cx}" cy="${cy}" r="${(mR*0.7).toFixed(2)}"/>`;
+      }
+      if (state.sel.some(q => near(q, v))) marks += `<circle class="m-halo" cx="${cx}" cy="${cy}" r="${(mR*2.6).toFixed(2)}"/><circle class="m-sel" cx="${cx}" cy="${cy}" r="${(mR*2.6).toFixed(2)}"/>`;
+      marks += `<circle class="m-hit" data-node="${v.x.toFixed(2)},${v.y.toFixed(2)}" cx="${cx}" cy="${cy}" r="${hitR.toFixed(2)}"/>`;
+    }));
+    if (vec) marks += renderContourMarks(curCons(), asc, px);
+    const gridSvg = state.showG ? renderGrid(box, px, asc, isBase) : '';
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.floor(box.w * px)}" height="${Math.floor(box.h * px)}" viewBox="${box.x.toFixed(1)} ${box.y.toFixed(1)} ${box.w.toFixed(1)} ${box.h.toFixed(1)}" role="img" aria-label="${isBase ? 'Glif bazowy' : 'Edytowany glif'}">`
+      + gridSvg + `<g class="glyph">${paths}</g>` + (state.showO ? `<g class="orig">${origs}</g>` : '') + `<g>${marks}</g></svg>`;
+  };
+  const etyk = (gl) => (gl.unicode != null ? String.fromCodePoint(gl.unicode) : (gl.name || '#' + gl.index));
+  const glyphSvg = split
+    ? `<div class="pane base"><span class="pane-lbl">Baza — ${etyk(bg)}</span><div class="pane-box">${pane(bg, true)}</div></div>`
+      + `<div class="pane"><span class="pane-lbl">Edytujesz — ${etyk(g)}</span><div class="pane-box">${pane(g, false)}</div></div>`
+    : pane(g, false);
   $('note').textContent = `${g.name || 'glif ' + g.index}, szerokość ${adv} j.`;
   return `<div class="edit-wrap"><div class="edit-main">${glyphSvg}</div><div class="edit-sample" style="height:${sampleH}px">${sampleSvg}</div></div>`;
 }
@@ -1377,23 +1405,26 @@ const curZoom = () => {
   if (zoomF == null || zoomFKey !== k) { zoomF = zoomCfg().get(); zoomFKey = k; }
   return zoomF;
 };
+const zoomStep = () => +$('size').step || 1;
 function zoomTo(v){
-  const z = zoomCfg(), step = +$('size').step || 1;
+  const z = zoomCfg();
   curZoom();                                 // dociągnij akumulator do bieżącego widoku
   zoomF = Math.max(z.min, Math.min(z.max, v));
-  const target = Math.round(zoomF / step) * step;
-  $('size').value = target;                  // suwak rusza się od razu, razem z gestem
-  if (zq) { zq.v = target; return; }
-  if (target === z.get()) return;            // jeszcze nie uzbierało się na pełny krok
+  // Do stanu idzie wartość CIĄGŁA. Zaokrąglanie do kroku suwaka dotyczy wyłącznie tego,
+  // co suwak pokazuje — inaczej gest na gładziku mógłby zmieniać powiększenie tylko
+  // skokami co 5% (tyle ma krok w edycji glifu) i wychodziło to szarpane.
+  $('size').value = Math.round(zoomF / zoomStep()) * zoomStep();
+  if (zq) { zq.v = zoomF; return; }
+  if (Math.abs(zoomF - z.get()) < 1e-3) return;
   const sc = scroller();
-  zq = { v: target, old: z.get(), sl: sc.scrollLeft, stp: sc.scrollTop };
+  zq = { v: zoomF, old: z.get(), sl: sc.scrollLeft, stp: sc.scrollTop };
   requestAnimationFrame(applyZoom);
 }
 function applyZoom(){
   const q = zq; zq = null; if (!q) return;
   const z = zoomCfg(), sc0 = scroller();
   const cx = sc0.clientWidth / 2, cy = sc0.clientHeight / 2, r = q.v / q.old;
-  z.set(q.v); $('size').value = q.v; render();
+  z.set(q.v); $('size').value = Math.round(q.v / zoomStep()) * zoomStep(); render();
   // środek widoku zostaje na swoim miejscu; gdy zawartość mieści się w oknie,
   // przewijanie i tak jest zerowe i wyśrodkowuje ją margin:auto
   const sc = scroller();
@@ -1491,7 +1522,7 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
     // Gładzik sypie drobnymi wartościami, mysz jedną dużą na ząbek — przycinamy,
     // żeby jedno kliknięcie kółka nie przeskakiwało przez pół zakresu.
     const d = Math.max(-25, Math.min(25, e.deltaY));
-    zoomTo(curZoom() * Math.exp(-d * 0.01));
+    zoomTo(curZoom() * Math.exp(-d * 0.007));
   }, { passive: false });
 })();
 function fitText(){ const t = $('text'); t.style.height = 'auto'; t.style.height = Math.min(120, Math.max(36, t.scrollHeight)) + 'px'; }
