@@ -1004,9 +1004,6 @@ function updatePanel(){
   $('vPanel').hidden = !contour; $('cPanel').hidden = false;
   if (contour) {
     const nodes = state.vsel.filter(s => s.part === 'node');
-    $('vHint').textContent = !state.vsel.length
-      ? 'Kliknij węzeł; dwuklik na linii dodaje nowy.'
-      : `Zaznaczone: ${nodes.length ? nodes.length + (nodes.length === 1 ? ' węzeł' : ' węzły') : ''}${nodes.length && state.vsel.length > nodes.length ? ' i ' : ''}${state.vsel.length > nodes.length ? (state.vsel.length - nodes.length) + ' uchwyt' : ''}.`;
     $('vBtns').hidden = !nodes.length;
     $('vCoords').hidden = nodes.length !== 1;
     if (nodes.length === 1) {
@@ -1019,10 +1016,6 @@ function updatePanel(){
   const gs = E && E.scale != null ? E.scale : 100;
   $('s-gscale').value = gs; $('n-gscale').value = gs; paint($('s-gscale'));
   const sel = selectedJoints(info), corners = sel.filter(j => j.c), points = sel.filter(j => !j.c);
-  $('npHint').title = 'Puste kółka to punkty, których algorytm nie uznał za narożniki — po kliknięciu możesz je wymusić. Strzałki przeskakują między narożnikami.';
-  $('npHint').textContent = !sel.length
-    ? (contour ? 'Zaznacz węzeł, żeby ustawić jego zaokrąglenie.' : 'Nic nie zaznaczono.')
-    : `Zaznaczone: ${corners.length ? corners.length + ' ' + (corners.length === 1 ? 'narożnik' : 'narożniki') : ''}${corners.length && points.length ? ' i ' : ''}${points.length ? points.length + ' ' + (points.length === 1 ? 'punkt bez narożnika' : 'punkty bez narożnika') : ''}.`;
   $('npCtrls').hidden = !corners.length;
   if (corners.length) {
     const n = corners[0].n || NODE_DEF, c = corners[0].c;
