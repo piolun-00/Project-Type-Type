@@ -222,14 +222,21 @@
       <h2 id="fileModalTitle">Dodaj font lub SVG</h2>
       <button class="iconbtn" id="fileModalClose" aria-label="Zamknij">×</button>
     </div>
-    <div class="drop locked" id="drop" tabindex="0" role="button" aria-disabled="true">
+    <div class="drop ready" id="drop" tabindex="0" role="button">
       <strong>Wgraj font lub SVG</strong>
-      <span id="dropHint">Najpierw zaznacz potwierdzenie licencji.</span>
+      <span id="dropHint">Przeciągnij tutaj albo kliknij. TTF, OTF, WOFF, SVG.</span>
     </div>
     <input type="file" id="file" accept=".ttf,.otf,.woff,.svg,font/ttf,font/otf,font/woff,image/svg+xml" hidden>
-    <label class="license"><input type="checkbox" id="lic"><span>Mam licencję lub prawa do modyfikacji pliku, który wgrywam.</span></label>
+    <div id="licStep" hidden>
+      <p class="picked">Wybrany plik: <b id="pickedName"></b></p>
+      <label class="license"><input type="checkbox" id="lic"><span>Mam licencję lub prawa do modyfikacji tego pliku.</span></label>
+      <div class="btn-row" style="margin-top:12px">
+        <button class="btn primary" id="licOk" disabled>Wgraj</button>
+        <button class="linkbtn" id="licCancel">Wybierz inny</button>
+      </div>
+    </div>
     <div class="msg" id="dropMsg"></div>
-    <p class="hint">Obsługiwane: TTF, OTF, WOFF i SVG. Pliki zostają w twojej przeglądarce — nic nie jest wysyłane.</p>
+    <p class="hint">Pliki zostają w twojej przeglądarce — nic nie jest wysyłane.</p>
   </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>

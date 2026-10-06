@@ -252,3 +252,6 @@ details[open] summary{margin-bottom:14px}
 .modal .drop{margin-bottom:0}
 .modal .license{margin-top:12px}
 .modal .msg:empty{display:none}
+
+.picked{margin:0 0 10px; font-size:13px; color:var(--muted)}
+.picked b{color:var(--ink); font-weight:600}

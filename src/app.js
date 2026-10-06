@@ -710,12 +710,9 @@ function renderCount(counts){
 }
 
 /* ================= wejście: pliki ================= */
-function setMsg(t, err){
-  for (const id of ['msg', 'dropMsg']) {
-    const m = $(id); if (!m) continue;
-    m.textContent = t || ''; m.className = 'msg' + (err ? ' err' : '');
-  }
-}
+function setMsg(t, err){ const m = $('msg'); m.textContent = t || ''; m.className = 'msg' + (err ? ' err' : ''); }
+// komunikaty dotyczące wgrywania zostają w oknie wgrywania
+function setDropMsg(t, err){ const m = $('dropMsg'); m.textContent = t || ''; m.className = 'msg' + (err ? ' err' : ''); }
 function loadDemo(){
   const { shapes } = parseSvg(DEMO);
   useShapes(shapes, 'demo', 'kształty demo');
@@ -741,8 +738,7 @@ function useFont(font, name, boot){
   schedule();
 }
 async function handleFile(file){
-  if (!$('lic').checked) { setMsg('Zaznacz najpierw potwierdzenie licencji.', true); return; }
-  setMsg('');
+  setDropMsg('');
   const name = file.name || 'plik'; const ext = (name.split('.').pop() || '').toLowerCase();
   try {
     if (ext === 'svg' || file.type === 'image/svg+xml') {
@@ -750,7 +746,7 @@ async function handleFile(file){
       const { shapes, notes } = parseSvg(txt);
       state.hash = 'svg-' + hashBytes(new TextEncoder().encode(txt));
       useShapes(shapes, 'svg', name); state.svgName = name.replace(/\.svg$/i,'');
-      closeFileModal(); offerRestore();
+      resetPick(); closeFileModal(); offerRestore();
       if (notes.length) setMsg('Uwaga: ' + notes.join('; ') + '.');
     } else if (['ttf','otf','woff'].includes(ext)) {
       if (!window.opentype) throw new Error('Nie udało się wczytać biblioteki do fontów (vendor/opentype.min.js). Odśwież stronę.');
@@ -759,13 +755,13 @@ async function handleFile(file){
       state.srcTables = (() => { try { return RounderVF.readTables(new Uint8Array(buf)); } catch(e) { return null; } })();
       state.hash = 'font-' + hashBytes(new Uint8Array(buf));
       useFont(font, name);
-      closeFileModal(); offerRestore();
+      resetPick(); closeFileModal(); offerRestore();
     } else if (ext === 'woff2') {
       throw new Error('WOFF2 nie jest jeszcze obsługiwany. Wgraj wersję TTF lub OTF.');
     } else throw new Error('Obsługiwane pliki: TTF, OTF, WOFF i SVG.');
   } catch (e) {
     const m = String(e && e.message || e);
-    setMsg(/signature|wOF2/i.test(m) ? 'Nie rozpoznaję formatu fontu. Wgraj TTF, OTF lub WOFF.' : m, true);
+    setDropMsg(/signature|wOF2/i.test(m) ? 'Nie rozpoznaję formatu fontu. Wgraj TTF, OTF lub WOFF.' : m, true);
   }
 }
 
@@ -1657,8 +1653,8 @@ window.addEventListener('resize', () => { if (state.view === 'glyphs' || state.v
 const fileModal = $('fileModal');
 function openFileModal(){
   fileModal.hidden = false;
-  setMsg('');
-  setTimeout(() => ($('lic').checked ? $('drop') : $('lic')).focus(), 0);
+  resetPick(); setDropMsg('');
+  setTimeout(() => $('drop').focus(), 0);
 }
 function closeFileModal(){ fileModal.hidden = true; }
 $('openFile').addEventListener('click', openFileModal);
@@ -1667,17 +1663,33 @@ $('fileModalBg').addEventListener('click', closeFileModal);
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !fileModal.hidden) { e.stopPropagation(); closeFileModal(); } }, true);
 
 const drop = $('drop'), lic = $('lic');
-function setLic(){
-  const on = lic.checked; drop.classList.toggle('ready', on); drop.classList.toggle('locked', !on); drop.setAttribute('aria-disabled', !on);
-  $('dropHint').textContent = on ? 'Przeciągnij tutaj albo kliknij. TTF, OTF, WOFF, SVG.' : 'Najpierw zaznacz potwierdzenie licencji.';
+let pendingFile = null;
+// Kolejność: najpierw wybierasz plik, dopiero potem potwierdzasz, że masz do niego prawa.
+// Potwierdzenie dotyczy konkretnego pliku, więc pytamy przy każdym.
+function pickFile(f){
+  if (!f) return;
+  pendingFile = f;
+  $('pickedName').textContent = f.name || 'plik';
+  lic.checked = false; $('licOk').disabled = true;
+  $('licStep').hidden = false; drop.hidden = true;
+  setDropMsg('');
+  setTimeout(() => lic.focus(), 0);
 }
+function resetPick(){
+  pendingFile = null;
+  $('licStep').hidden = true; drop.hidden = false;
+  lic.checked = false; $('licOk').disabled = true;
+}
+function setLic(){ $('licOk').disabled = !lic.checked; }
 lic.addEventListener('change', setLic);
-drop.addEventListener('click', () => { if (lic.checked) $('file').click(); else { setMsg('Zaznacz najpierw potwierdzenie licencji.', true); lic.focus(); } });
+$('licOk').addEventListener('click', () => { const f = pendingFile; if (f && lic.checked) handleFile(f); });
+$('licCancel').addEventListener('click', () => { resetPick(); setDropMsg(''); });
+drop.addEventListener('click', () => $('file').click());
 drop.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); drop.click(); } });
-$('file').addEventListener('change', e => { const f = e.target.files[0]; if (f) handleFile(f); e.target.value = ''; });
-['dragenter','dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); if (lic.checked) drop.classList.add('over'); }));
+$('file').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; pickFile(f); });
+['dragenter','dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
 ['dragleave','drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('over'); }));
-drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
+drop.addEventListener('drop', e => pickFile(e.dataTransfer.files[0]));
 $('expSvg').addEventListener('click', exportSvg);
 $('expFont').addEventListener('click', exportFont);
 $('expVF').addEventListener('click', exportVF);
