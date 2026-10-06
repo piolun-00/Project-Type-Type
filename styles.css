@@ -209,3 +209,16 @@ details[open] summary{margin-bottom:14px}
 .num, #strokeOv, #vX, #vY, #note{ font-family:var(--mono); }
 .hint, .foot, .count, .file-info, .edit-sample-label, .gname{ letter-spacing:-.005em; }
 .num, #strokeOv, #vX, #vY{ font-variant-numeric:tabular-nums; }
+
+/* sekcja „Baza” — wybór glifu źródłowego i podgląd jego korekt */
+.np-h3{margin:18px 0 8px; font-size:13px; font-weight:600; border-top:1px solid var(--line); padding-top:14px}
+.base-pick{display:flex; align-items:center; gap:8px; margin-bottom:6px}
+.base-pick input{width:64px; text-align:center; padding:7px 6px; border:0; border-radius:8px; background:var(--field); font-size:15px}
+.base-list{display:flex; flex-direction:column; gap:3px; max-height:230px; overflow:auto}
+.base-row{display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:7px; background:var(--field);
+  font-family:var(--mono); font-size:11.5px; color:var(--muted); text-align:left; border:0; width:100%}
+.base-row .dot{width:8px; height:8px; border-radius:50%; flex:none}
+.base-row .pos{color:var(--ink); font-variant-numeric:tabular-nums; flex:none; width:76px}
+.base-row .val{margin-left:auto; white-space:nowrap}
+.base-row.m-end .dot{background:var(--end)} .base-row.m-out .dot{background:var(--out)}
+.base-row.m-in .dot{background:var(--in)} .base-row.m-off .dot{background:var(--faint)}

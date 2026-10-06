@@ -29,6 +29,7 @@ const state = {
   edit: 0,
   sel: [],
   ovr: {},          // klucz glifu → { scale, nodes:[{x,y,type,mode,amt,absorb}], force:[{x,y}] }
+  base: {},         // indeks edytowanego glifu → indeks glifu bazowego
   hash: '',
   showC: true, showO: false,
   booting: true,     // zanim wczytamy domyślny font, nie rysujemy nic migotliwego
@@ -350,7 +351,7 @@ const LSKEY = () => 'type-type:' + state.hash;
 const LSKEY_OLD = () => 'szlifiernia:' + state.hash;
 function settingsObj(){
   return { app:'Type Type', version:1, source:{ name: state.mode === 'font' ? state.fontFile : (state.svgName || ''), hash: state.hash },
-    p: state.p, ovr: state.ovr, union: state.union, strokeOv: state.strokeOv, famName: $('famName').value, text: state.text, saved: Date.now() };
+    p: state.p, ovr: state.ovr, base: state.base, union: state.union, strokeOv: state.strokeOv, famName: $('famName').value, text: state.text, saved: Date.now() };
 }
 function autosave(){
   if (!state.hash || state.source === 'demo') return;
@@ -361,6 +362,7 @@ function applySettings(o, fromFile){
   checkpoint(); hist.t = 0;
   state.p = Object.assign({}, DEF, o.p || {});
   state.ovr = o.ovr && typeof o.ovr === 'object' ? o.ovr : {};
+  state.base = o.base && typeof o.base === 'object' ? o.base : {};
   if (typeof o.union === 'boolean') { state.union = o.union; $('union').checked = o.union; }
   state.strokeOv = o.strokeOv > 0 ? o.strokeOv : null; $('strokeOv').value = state.strokeOv || '';
   if (o.famName && state.mode === 'font') $('famName').value = o.famName;
@@ -448,6 +450,19 @@ function glyphItems(){
 
 /* ================= widok edycji glifu ================= */
 function editGlyph(){ return state.font.glyphs.get(state.edit) }
+// Szerokość, od której liczymy stały kadr. Nie bierzemy najszerszego glifu w foncie,
+// bo jeden wyjątek (w ABC Areal 1500 j. przy literze A równej 718) rozpycha ramkę
+// wszystkim pozostałym. 95. percentyl pomija takie wyskoki.
+function widthRef(){
+  const f = state.font;
+  if (widthRef.forId === state.loadId) return widthRef.v;
+  const w = [];
+  for (let i = 0; i < f.glyphs.length; i++) { const a = f.glyphs.get(i).advanceWidth; if (a > 0) w.push(a); }
+  w.sort((a, b) => a - b);
+  widthRef.v = Math.max(f.unitsPerEm, w.length ? w[Math.floor(w.length * 0.95)] : f.unitsPerEm);
+  widthRef.forId = state.loadId;
+  return widthRef.v;
+}
 const PANGRAMS = ['Pchnąć w tę łódź jeża lub ośm skrzyń fig', 'Zażółć gęślą jaźń', 'Mężny bądź, chroń pułk twój i sześć flag', 'The quick brown fox jumps over the lazy dog', 'Hamburgefonstiv 0123456789'];
 function sampleLines(g){
   const c = g.unicode != null ? String.fromCodePoint(g.unicode) : null;
@@ -534,7 +549,7 @@ function renderEdit(rp, counts){
   const advMax = isFinite(hh.advanceWidthMax) ? hh.advanceWidthMax : upm;
   const top = Math.max(asc, yMax), bot = Math.min(desc, yMin);
   const m = upm * 0.18;
-  const gw = Math.max(advMax, xMax - Math.min(0, xMin)) + 2 * m, gh = (top - bot) + 1.4 * m;
+  const gw = widthRef() + 2 * m, gh = (top - bot) + 1.4 * m;
   const gbox = { x: adv / 2 - gw / 2, y: (asc - top) - m * 0.5, w: gw, h: gh };
   // wymiary obszaru glifu (scena bez marginesów, minus pasek ze zdaniem)
   const areaW = Math.max(200, st.clientWidth - 56), areaH = Math.max(160, st.clientHeight - 56 - sampleH);
@@ -542,6 +557,14 @@ function renderEdit(rp, counts){
   // pole rysunku wypełnia cały obszar (siatka do krawędzi), glif w środku; po przybliżeniu rośnie i się przewija
   const fw = Math.max(gbox.w, areaW / px), fh = Math.max(gbox.h, areaH / px);
   const box = { x: gbox.x + gbox.w / 2 - fw / 2, y: gbox.y + gbox.h / 2 - fh / 2, w: fw, h: fh };
+  // Pole rysunku może urosnąć, żeby objąć glif szerszy niż kadr odniesienia.
+  // Skala tego nie dotyczy — liczy się z gbox, więc zostaje stała.
+  const gcb = glyphCmds(g).length ? cmdsBox([glyphCmds(g)]) : null;
+  if (gcb && isFinite(gcb.x)) {
+    const L = Math.min(box.x, gcb.x - m * 0.5), R = Math.max(box.x + box.w, gcb.x + gcb.w + m * 0.5);
+    const T = Math.min(box.y, (asc - (gcb.y + gcb.h)) - m * 0.5), B = Math.max(box.y + box.h, (asc - gcb.y) + m * 0.5);
+    box.x = L; box.w = R - L; box.y = T; box.h = B - T;
+  }
   const hitR = 13 / Math.max(px, 1e-6), mR = 5.5 / Math.max(px, 1e-6);
   let paths = '', origs = '', marks = '';
   let an = null, M = null;
@@ -666,7 +689,7 @@ function useShapes(shapes, source, name){
 }
 function useFont(font, name, boot){
   state.mode='font'; state.source = boot ? 'boot' : 'font'; state.font=font; state.fontFile=name; state.shapes=[];
-  state.ovr = {}; state.sel = []; hist.undo.length = 0; hist.redo.length = 0; state.edit = firstGlyph();
+  state.ovr = {}; state.base = {}; state.sel = []; hist.undo.length = 0; hist.redo.length = 0; state.edit = firstGlyph();
   if (state.view === 'edit') state.view = 'text';
   state.ref = font.unitsPerEm; state.loadId = (state.loadId||0)+1; cache.clear(); refreshDetection(); syncUI();
   const fam = (font.names.fontFamily && (font.names.fontFamily.en || Object.values(font.names.fontFamily)[0])) || name.replace(/\.\w+$/,'');
@@ -959,6 +982,7 @@ function updatePanel(){
     ob.querySelector('span').textContent = `${orph.length} ${orph.length === 1 ? 'korekta nie trafia' : 'korekt nie trafia'} w żaden narożnik — prawdopodobnie zmieniły się progi wykrywania.`;
     $('npOrph').onclick = () => { checkpoint(); const Ee = state.ovr[info.key]; Ee.nodes = Ee.nodes.filter(n => !orph.includes(n)); cleanOvr(info.key); updatePanel(); schedule(); autosave(); };
   } else { ob.textContent = ''; ob.className = 'msg'; }
+  renderBase();
   const keys = Object.keys(state.ovr).filter(k => k[0] === 'g' && hasOvr(k));
   $('npListWrap').hidden = !keys.length;
   $('npList').innerHTML = '';
@@ -974,6 +998,85 @@ function cycleNode(d){
   let i = state.sel.length ? cs.findIndex(j => near(j.v, state.sel[0])) : -1;
   i = (i + d + cs.length) % cs.length; if (i < 0) i = 0;
   state.sel = [cs[i].v]; updatePanel(); schedule();
+}
+
+/* ================= baza glifu (źródło korekt do przeniesienia) ================= */
+const TYPE_PL = { end: 'zakończenie', out: 'zewnętrzny', in: 'wewnętrzny', off: 'ostry' };
+// litera bazowa z rozkładu Unicode: Ă → A, ó → o. Nie zadziała dla Ł czy ø — tam wybierasz ręcznie.
+function suggestBase(g){
+  if (g.unicode == null) return null;
+  const ch = String.fromCodePoint(g.unicode), d = ch.normalize('NFD');
+  if (d.length < 2 || d === ch) return null;
+  const i = state.font.charToGlyphIndex(d[0]);
+  return i > 0 && i !== g.index ? { i, ch: d[0] } : null;
+}
+// korekty glifu bazowego, już rozpoznane względem jego narożników
+function baseData(){
+  const bi = state.base[state.edit];
+  if (bi == null) return null;
+  const f = state.font, bg = f.glyphs.get(bi);
+  if (!bg) return null;
+  const key = 'g' + bi, cmds = glyphCmds(bg);
+  const E = state.ovr[key] || {};
+  const res = { bg, key, rows: [], scale: E.scale == null ? 100 : E.scale, forced: (E.force || []).length, orphans: 0 };
+  if (!cmds.length) return res;
+  const an = getAnalysis(key, cmds, 'nonzero'), M = matchOvr(key, an);
+  if (M) res.orphans = M.orphans.length;
+  an.forEach((C, ci) => C.corners.forEach((c, k) => {
+    const n = M && M.nodeAt[ci][k];
+    if (!n) return;
+    res.rows.push({ v: c.v, n, t: effType(n, c) });
+  }));
+  res.rows.sort((a, b) => (b.v.y - a.v.y) || (a.v.x - b.v.x));
+  return res;
+}
+const amtLabel = (n) => (n.mode === 'abs' ? 'zamrożona ' + n.amt : n.amt + '% suwaka');
+function renderBase(){
+  const on = state.mode === 'font' && state.view === 'edit';
+  $('baseWrap').hidden = !on;
+  if (!on) return;
+  const g = editGlyph(), bi = state.base[state.edit];
+  const sug = suggestBase(g);
+  const sb = $('baseSuggest');
+  if (sug && bi == null) { sb.hidden = false; sb.textContent = 'Użyj „' + sug.ch + '”'; sb.dataset.i = sug.i; }
+  else sb.hidden = true;
+  if (document.activeElement !== $('baseChar')) {
+    const bg = bi != null && state.font.glyphs.get(bi);
+    $('baseChar').value = bg && bg.unicode != null ? String.fromCodePoint(bg.unicode) : '';
+  }
+  $('baseClear').hidden = bi == null;
+  const D = baseData(), msg = $('baseMsg');
+  if (bi == null) { msg.textContent = ''; msg.className = 'msg'; $('baseListWrap').hidden = true; return; }
+  if (!D) { msg.textContent = 'Nie znalazłem takiego glifu.'; msg.className = 'msg err'; $('baseListWrap').hidden = true; return; }
+  const nazwa = D.bg.unicode != null ? '„' + String.fromCodePoint(D.bg.unicode) + '”' : (D.bg.name || '#' + D.bg.index);
+  msg.className = 'msg';
+  if (!D.rows.length && D.scale === 100 && !D.forced) {
+    msg.textContent = 'Glif ' + nazwa + ' nie ma jeszcze żadnych korekt — nie ma czego przenosić.';
+    $('baseListWrap').hidden = true; return;
+  }
+  const extra = [];
+  if (D.scale !== 100) extra.push('skala całego glifu ' + D.scale + '%');
+  if (D.forced) extra.push(D.forced + ' wymuszonych narożników');
+  if (D.orphans) extra.push(D.orphans + ' korekt nie trafia w narożnik');
+  msg.textContent = 'Baza: glif ' + nazwa + (extra.length ? '. ' + extra.join(', ') + '.' : '.');
+  const L = $('baseList'); L.innerHTML = '';
+  for (const r of D.rows) {
+    const el = document.createElement('div');
+    el.className = 'base-row m-' + r.t;
+    const pos = document.createElement('span'); pos.className = 'pos';
+    pos.textContent = Math.round(r.v.x) + ', ' + Math.round(r.v.y);
+    const typ = document.createElement('span'); typ.textContent = TYPE_PL[r.t] || r.t;
+    const val = document.createElement('span'); val.className = 'val';
+    val.textContent = r.t === 'off' ? '—' : amtLabel(r.n);
+    el.innerHTML = '<span class="dot"></span>';
+    el.append(pos, typ, val);
+    L.appendChild(el);
+  }
+  $('baseListWrap').hidden = false;
+}
+function setBase(i){
+  if (i == null) delete state.base[state.edit]; else state.base[state.edit] = i;
+  renderBase(); schedule(); autosave();
 }
 
 /* ================= edytor konturu ================= */
@@ -1457,6 +1560,14 @@ $('vDel').addEventListener('click', vectorDelete);
 $('vReset').addEventListener('click', () => { const key = 'g' + state.edit, E = state.ovr[key]; if (!E || !E.path) return; checkpoint(); hist.t = 0; delete E.path; delete E.pk; cleanOvr(key); state.vsel = []; updatePanel(); schedule(); autosave(); });
 $('vX').addEventListener('change', e => vectorSetXY('x', +e.target.value));
 $('vY').addEventListener('change', e => vectorSetXY('y', +e.target.value));
+$('baseChar').addEventListener('input', e => {
+  const ch = [...e.target.value].pop();
+  if (!ch) { setBase(null); return; }
+  const i = state.font.charToGlyphIndex(ch);
+  if (i > 0) { e.target.value = ch; setBase(i); } else toast('Tego znaku nie ma w foncie');
+});
+$('baseSuggest').addEventListener('click', e => setBase(+e.currentTarget.dataset.i));
+$('baseClear').addEventListener('click', () => setBase(null));
 $('gPrev').addEventListener('click', () => stepGlyph(-1));
 $('gNext').addEventListener('click', () => stepGlyph(1));
 $('gChar').addEventListener('input', e => {
