@@ -435,7 +435,7 @@ function glyphItems(){
   // siatka glifów
   const max = Math.min(f.glyphs.length, 800);
   // kolumny liczone od bazowej wielkości komórki: powiększenie nie przestawia siatki, tylko ją skaluje
-  const cellPx = state.gzoom, avail = Math.max(300, $('sheet').parentElement.clientWidth - 128);
+  const cellPx = state.gzoom, avail = Math.max(300, $('sheet').parentElement.clientWidth - 56);
   const cols = Math.max(4, Math.floor(avail / GRID_BASE));   // stała liczba kolumn: powiększenie tylko skaluje
   const cell = upm * 1.25;
   for (let i=0;i<max;i++){
@@ -686,7 +686,7 @@ function render(){
     const b = state.box; const pad = Math.max(b.w, b.h) * 0.03;
     box = { x: b.x - pad, y: b.y - pad, w: b.w + 2*pad, h: b.h + 2*pad };
     const sheetEl = $('sheet'), stageEl = sheetEl.parentElement;
-    const fitW = Math.max(200, stageEl.clientWidth - 128), fitH = Math.max(200, stageEl.clientHeight - 128);
+    const fitW = Math.max(200, stageEl.clientWidth - 56), fitH = Math.max(200, stageEl.clientHeight - 56);
     pxPerUnit = Math.min(fitW / box.w, fitH / box.h) * state.zoom / 100;
     const r = markR / pxPerUnit;
     state.shapes.forEach((s, i) => {
@@ -1111,7 +1111,7 @@ function renderBase(){
     const typ = document.createElement('span');
     typ.textContent = r.t == null ? 'nie jest narożnikiem' : (TYPE_PL[r.t] || r.t);
     const val = document.createElement('span'); val.className = 'val';
-    val.textContent = r.t == null ? 'samo położenie' : (r.n ? (r.t === 'off' ? 'ostry' : amtLabel(r.n)) : 'bez korekty');
+    val.textContent = r.t == null ? 'sama geometria' : (r.n ? (r.t === 'off' ? 'ostry' : amtLabel(r.n)) : 'bez korekty');
     el.append(pos, typ, val);
   };
   const row = $('baseNode'), copyBtn = $('baseCopy'), applyBtn = $('baseApply');
@@ -1127,7 +1127,7 @@ function renderBase(){
       wiersz(r, row);
       copyBtn.hidden = false; applyBtn.hidden = true;
       copyBtn.disabled = false;
-      copyBtn.textContent = r.t == null ? 'Kopiuj położenie' : 'Kopiuj ustawienie';
+      copyBtn.textContent = r.t == null ? 'Kopiuj geometrię' : 'Kopiuj ustawienie';
       copyBtn.title = 'Cmd/Ctrl + C';
       box.hidden = false;
     }
@@ -1160,11 +1160,12 @@ function renderClip(){
   const pos = document.createElement('span'); pos.className = 'pos'; pos.textContent = 'schowek';
   pos.title = 'położenie węzła w schowku';
   // „auto” znaczy „zostaw typ wykryty automatem” — dopisujemy, czym jest w praktyce
-  const nazwaTypu = c.type == null ? 'samo położenie'
+  const ksztalt = c.in || c.out ? (c.smooth ? 'gładki' : 'z uchwytami') : 'wyprostowany';
+  const nazwaTypu = c.type == null ? 'geometria (' + ksztalt + ')'
     : (c.type === 'auto' ? 'auto (' + (TYPE_PL[eff] || eff) + ')' : (TYPE_PL[c.type] || c.type));
   const typ = document.createElement('span'); typ.textContent = nazwaTypu + (c.from ? ' z ' + c.from : '');
   const val = document.createElement('span'); val.className = 'val';
-  val.textContent = c.type == null ? '—' : (c.type === 'off' ? 'ostry' : amtLabel(c));
+  val.textContent = c.type == null ? (c.from ? 'z ' + c.from : '—') : (c.type === 'off' ? 'ostry' : amtLabel(c));
   el.append(pos, typ, val);
   const sel = state.sel.length;
   $('basePaste').hidden = c.type == null;
@@ -1174,7 +1175,7 @@ function renderClip(){
   const pp = $('basePastePos');
   pp.hidden = c.x == null;
   pp.disabled = sel !== 1;
-  pp.title = sel === 1 ? 'Przesuwa węzeł na ' + Math.round(c.x) + ', ' + Math.round(c.y) + ' (Cmd/Ctrl + Shift + V)'
+  pp.title = sel === 1 ? 'Położenie ' + Math.round(c.x) + ', ' + Math.round(c.y) + ' razem z uchwytami krzywej (Cmd/Ctrl + Shift + V)'
                        : 'Zaznacz dokładnie jeden węzeł po prawej';
   if (c.x != null) pos.textContent = Math.round(c.x) + ', ' + Math.round(c.y);
   w.hidden = false;
@@ -1725,6 +1726,25 @@ $('baseApply').addEventListener('click', () => {
   toast('Przeniesiono wartości z bazy');
 });
 const glyphLab = (gl) => (gl.unicode != null ? '„' + String.fromCodePoint(gl.unicode) + '”' : (gl.name || '#' + gl.index));
+// węzeł konturu glifu leżący w podanym miejscu (razem z numerem konturu i węzła)
+function nodeAtPos(gl, v){
+  const cons = toNodes(glyphCmds(gl));
+  let best = null, bd = Infinity;
+  cons.forEach((C, ci) => C.nodes.forEach((n, ni) => {
+    const d = Math.hypot(n.x - v.x, n.y - v.y);
+    if (d < bd) { bd = d; best = { cons, ci, ni, n }; }
+  }));
+  return best && bd <= tolN() ? best : null;
+}
+// geometria węzła do schowka: położenie plus uchwyty zapisane względem węzła,
+// dzięki czemu „gładki” albo „wyprostowany” przenosi się razem z kształtem
+function nodeGeom(gl, v){
+  const f = nodeAtPos(gl, v); if (!f) return null;
+  const n = f.n;
+  return { x: n.x, y: n.y, smooth: isSmooth(n),
+           in: n.in ? { x: n.in.x - n.x, y: n.in.y - n.y } : null,
+           out: n.out ? { x: n.out.x - n.x, y: n.out.y - n.y } : null };
+}
 // Do schowka trafia ustawienie narożnika. Gdy nie ma przy nim ręcznej korekty,
 // bierzemy to, co wykrył automat — wklejone gdzie indziej ustawi tam ten sam typ
 // na pełnej sile, co bywa dokładnie tym, o co chodzi.
@@ -1742,45 +1762,46 @@ function copyNode(){
     if (j) { r = { v: j.v, n: j.n || null, t: effType(j.n, j.c) }; src = editGlyph(); }
   }
   if (!r) return false;
+  const geom = nodeGeom(src, r.v);
   if (r.t == null) {
-    state.clip = { type: null, x: r.v.x, y: r.v.y, from: glyphLab(src) };
-    updatePanel(); toast('Skopiowano samo położenie węzła');
+    state.clip = Object.assign({ type: null, x: r.v.x, y: r.v.y, from: glyphLab(src) }, geom || {});
+    updatePanel(); toast('Skopiowano geometrię węzła');
     return true;
   }
   const n = r.n || { type: r.t, mode: 'rel', amt: 100, absorb: 'auto' };
-  state.clip = { type: n.type === 'auto' ? r.t : n.type, mode: n.mode, amt: n.amt, absorb: n.absorb,
-                 eff: r.t, x: r.v.x, y: r.v.y, from: glyphLab(src) };
+  state.clip = Object.assign({ type: n.type === 'auto' ? r.t : n.type, mode: n.mode, amt: n.amt,
+                               absorb: n.absorb, eff: r.t, x: r.v.x, y: r.v.y, from: glyphLab(src) }, geom || {});
   updatePanel();
-  toast('Skopiowano ustawienie' + (r.n ? '' : ' (wykryte automatem)'));
+  toast('Skopiowano ustawienie i geometrię' + (r.n ? '' : ' (ustawienie wykryte automatem)'));
   return true;
 }
-// Przesuwa zaznaczony węzeł konturu na współrzędne ze schowka. Uchwyty krzywych
-// i korekty przypięte do tego miejsca jadą razem z nim.
-function pastePos(){
+// Robi z zaznaczonego węzła kopię tego ze schowka: to samo położenie i te same
+// uchwyty, czyli także „gładki” albo „wyprostowany”. Korekty przypięte do starego
+// miejsca jadą razem z węzłem.
+function pasteGeom(){
   const c = state.clip;
   if (!c || c.x == null || state.sel.length !== 1) return false;
-  const cons = toNodes(glyphCmds(editGlyph()));
-  let best = null, bd = Infinity;
-  cons.forEach((C, ci) => C.nodes.forEach((n, ni) => {
-    const d = Math.hypot(n.x - state.sel[0].x, n.y - state.sel[0].y);
-    if (d < bd) { bd = d; best = [ci, ni]; }
-  }));
-  if (!best || bd > tolN()) { toast('W tym miejscu nie ma węzła konturu'); return false; }
-  const n = cons[best[0]].nodes[best[1]];
-  const dx = c.x - n.x, dy = c.y - n.y;
-  if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) { toast('Węzeł już jest w tym miejscu'); return false; }
+  const f = nodeAtPos(editGlyph(), state.sel[0]);
+  if (!f) { toast('W tym miejscu nie ma węzła konturu'); return false; }
+  const n = f.n, dx = c.x - n.x, dy = c.y - n.y;
+  const bylUchwyt = JSON.stringify([n.in, n.out]);
   checkpoint(); hist.t = 0;
   const stara = { x: n.x, y: n.y };
   n.x = c.x; n.y = c.y;
-  if (n.in) { n.in.x += dx; n.in.y += dy; }
-  if (n.out) { n.out.x += dx; n.out.y += dy; }
+  if (c.in !== undefined) n.in = c.in ? { x: n.x + c.in.x, y: n.y + c.in.y } : null;
+  else if (n.in) { n.in.x += dx; n.in.y += dy; }
+  if (c.out !== undefined) n.out = c.out ? { x: n.x + c.out.x, y: n.y + c.out.y } : null;
+  else if (n.out) { n.out.x += dx; n.out.y += dy; }
   const E = state.ovr['g' + state.edit];
   if (E) for (const arr of [E.nodes || [], E.force || []]) for (const q of arr)
     if (near(q, stara)) { q.x += dx; q.y += dy; }
-  writeCons(cons);
+  writeCons(f.cons);
   state.sel = [{ x: c.x, y: c.y }];
+  state.vsel = [{ ci: f.ci, ni: f.ni, part: 'node' }];
   updatePanel(); schedule(); autosave();
-  toast('Przesunięto węzeł o ' + Math.round(dx) + ', ' + Math.round(dy) + ' j.');
+  const ruch = (Math.abs(dx) >= 0.5 || Math.abs(dy) >= 0.5) ? 'przesunięty o ' + Math.round(dx) + ', ' + Math.round(dy) + ' j.' : 'bez przesunięcia';
+  const uchwyty = JSON.stringify([n.in, n.out]) !== bylUchwyt ? ', uchwyty podmienione' : '';
+  toast('Wklejono geometrię — ' + ruch + uchwyty);
   return true;
 }
 function pasteNode(){
@@ -1792,7 +1813,7 @@ function pasteNode(){
 }
 $('baseCopy').addEventListener('click', copyNode);
 $('basePaste').addEventListener('click', pasteNode);
-$('basePastePos').addEventListener('click', pastePos);
+$('basePastePos').addEventListener('click', pasteGeom);
 $('clipClear').addEventListener('click', () => { state.clip = null; updatePanel(); });
 $('baseClear').addEventListener('click', () => setBase(null));
 $('gPrev').addEventListener('click', () => stepGlyph(-1));
@@ -1824,7 +1845,7 @@ document.addEventListener('keydown', e => {
   if (mod && k === 'c' && !typing && state.mode === 'font' && state.view === 'edit'
       && (state.selBase.length === 1 || state.sel.length === 1)) { if (copyNode()) { e.preventDefault(); return; } }
   if (mod && e.shiftKey && k === 'v' && !typing && state.mode === 'font' && state.view === 'edit'
-      && state.sel.length === 1) { if (pastePos()) { e.preventDefault(); return; } }
+      && state.sel.length === 1) { if (pasteGeom()) { e.preventDefault(); return; } }
   if (mod && !e.shiftKey && k === 'v' && !typing && state.mode === 'font' && state.view === 'edit'
       && state.sel.length) { if (pasteNode()) { e.preventDefault(); return; } }
   if (state.mode !== 'font' || state.view !== 'edit' || typing) return;
