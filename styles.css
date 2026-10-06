@@ -296,7 +296,7 @@ section h2{margin:0 0 10px; font-size:12px; letter-spacing:.01em}
 .tb-chip.t-in .dot{background:var(--in)} .tb-chip.t-off .dot{background:var(--faint)}
 .tb-chip.t-auto .dot{background:transparent; border:1.5px solid var(--faint)}
 /* skala w prawym dolnym rogu, dyskretnie */
-.scale-corner{position:absolute; right:14px; bottom:calc(var(--previewH, 0px) + 50px); z-index:19;
+.scale-corner{position:absolute; right:14px; bottom:calc(var(--previewH, 0px) + 52px); z-index:19;
   display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:11px; color:var(--faint);
   background:color-mix(in srgb, var(--sheet) 85%, transparent); padding:4px 8px; border-radius:8px}
 .scale-corner input[type=range]{width:72px}
@@ -336,10 +336,13 @@ section h2{margin:0 0 10px; font-size:12px; letter-spacing:.01em}
 #baseBtn[aria-expanded=true]{border-color:var(--ink)}
 
 /* pasek z podglądem tekstu pod kadrem */
-.preview{flex:none; display:flex; align-items:center; gap:12px; padding:8px 16px;
+.preview{flex:none; display:flex; align-items:center; padding:8px 16px;
   border-top:1px solid var(--line); background:var(--sheet); overflow:hidden}
-.preview .textin{flex:none; width:190px; height:30px; min-height:0; resize:none; padding:6px 8px;
-  border:1px solid var(--line); border-radius:8px; background:var(--field); font-size:12.5px}
+/* pole tekstu wygląda jak sam tekst — żadnego okienka */
+.preview .textin{flex:1; min-width:0; height:auto; min-height:0; resize:none; padding:0; margin:0;
+  border:0; background:transparent; font-size:26px; line-height:1.12; font-weight:500; letter-spacing:-.01em}
+.preview .textin:focus{outline:none}
+.preview-art{cursor:text}
 .preview-art{flex:1; min-width:0; overflow:hidden}
 .preview-art svg{display:block; max-width:100%; height:auto}
 .preview-art .hl{fill:var(--end)}

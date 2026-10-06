@@ -409,6 +409,7 @@ function refreshDetection(){
 let prevCache = { key: '', html: '', h: 0 };
 function renderPreview(rp){
   const el = $('preview'), art = $('previewArt');
+  if (!renderPreview.init) { $('text').hidden = true; renderPreview.init = 1; }
   const on = state.showT && state.mode === 'font' && state.font;
   el.hidden = !on;
   if (!on) { document.documentElement.style.setProperty('--previewH', '0px'); return; }
@@ -433,7 +434,7 @@ function renderPreview(rp){
       html: `<svg xmlns="http://www.w3.org/2000/svg" width="${(w * sPx).toFixed(0)}" height="${(h * sPx).toFixed(0)}" viewBox="0 0 ${w.toFixed(1)} ${h.toFixed(1)}"><g class="glyph">${d}</g></svg>` };
     art.innerHTML = prevCache.html;
   }
-  $('text').style.display = edytuje ? 'none' : '';     // w edycji pokazujemy pangram, nie własny tekst
+  art.title = edytuje ? '' : 'Kliknij obok liter, żeby zmienić tekst';
   document.documentElement.style.setProperty('--previewH', el.offsetHeight + 'px');
 }
 
@@ -549,7 +550,7 @@ function renderGrid(box, px, asc, bezPodpisow){
   s += `<line class="metric baseline" x1="${x0}" x2="${x1}" y1="${asc}" y2="${asc}"/>`;
   if (bezPodpisow) return `<g aria-hidden="true">${s}</g>`;
   s += `<text class="metric-label" x="${(x0 + 4 / px).toFixed(2)}" y="${(asc - 4 / px).toFixed(2)}" font-size="${fs.toFixed(2)}">linia bazowa 0</text>`;
-  s += `<text class="metric-label" x="${(x1 - 4 / px).toFixed(2)}" y="${(box.y + box.h - 4 / px).toFixed(2)}" font-size="${fs.toFixed(2)}" text-anchor="end">siatka ${minor} j., linie główne co ${major} j.</text>`;
+  s += `<text class="metric-label" x="${(x0 + 4 / px).toFixed(2)}" y="${(box.y + box.h - 4 / px).toFixed(2)}" font-size="${fs.toFixed(2)}">siatka ${minor} j., linie główne co ${major} j.</text>`;
   return `<g aria-hidden="true">${s}</g>`;
 }
 // zwraca gotowy HTML widoku edycji
@@ -1977,10 +1978,32 @@ $('sheet').addEventListener('dblclick', e => {
   const [ci, si] = t.dataset.vs.split(',').map(Number), p = toFont(e); if (p) vectorInsert(ci, si, p);
 });
 $('preview').addEventListener('click', e => {
+  if (state.mode !== 'font') return;
   const sg = e.target.closest('.preview-art [data-gi]');
-  if (!sg || state.mode !== 'font') return;
-  const i = +sg.dataset.gi;
-  if (state.view === 'edit') { if (i !== state.edit) setEdit(i); } else enterEdit(i);
+  if (sg) {
+    const i = +sg.dataset.gi;
+    if (state.view === 'edit') { if (i !== state.edit) setEdit(i); } else enterEdit(i);
+    return;
+  }
+  // klik obok liter: tekst zamienia się w pole i edytujesz go na miejscu
+  if (state.view !== 'edit' && !e.target.closest('#text')) startTextEdit();
+});
+function startTextEdit(){
+  const t = $('text'), art = $('previewArt');
+  t.hidden = false; art.hidden = true;
+  t.value = state.text;
+  t.focus(); t.select();
+}
+function endTextEdit(){
+  const t = $('text');
+  if (t.hidden) return;
+  t.hidden = true; $('previewArt').hidden = false;
+  schedule();
+}
+$('text').addEventListener('blur', endTextEdit);
+$('text').addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { e.preventDefault(); $('text').value = state.text; endTextEdit(); }
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); endTextEdit(); }
 });
 $('sheet').addEventListener('click', e => {
   if (document.querySelector('.stage').dataset.dragged) return;
