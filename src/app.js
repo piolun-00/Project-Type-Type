@@ -542,6 +542,7 @@ function renderEdit(rp, counts){
   const sHres = lh + H;
   const sampleSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${(sW * sPx).toFixed(0)}" height="${(sH * sPx).toFixed(0)}" viewBox="0 0 ${sW.toFixed(1)} ${sH.toFixed(1)}"><g class="glyph">${sPaths}</g></svg>`;
   const sampleH = Math.ceil(sHres * sPx + 18);
+  document.documentElement.style.setProperty('--sampleH', sampleH + 'px');
   // glif: wyśrodkowany i dopasowany do wolnego miejsca
   // Kadr ma STAŁY rozmiar dla całego fontu, żeby każdy glif był w tej samej skali
   // i przełączanie znaków niczym nie szarpało. Liczymy go z metryk całego fontu
@@ -654,6 +655,7 @@ function render(){
   };
   const editing = state.mode === 'font' && state.view === 'edit';
   sheet.classList.toggle('editing', editing); sheet.parentElement.classList.toggle('edit-mode', editing);
+  if (!editing) document.documentElement.style.setProperty('--sampleH', '0px');
   if (editing) {
     const src0 = sheet.querySelector('.edit-main .pane') || sheet.querySelector('.edit-main');
     const keep = src0 ? [src0.scrollLeft, src0.scrollTop] : null;
@@ -1435,7 +1437,7 @@ function syncUI(){
   $('viewSeg').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x.dataset.v === state.view));
   $('editBar').hidden = !(state.mode === 'font' && state.view === 'edit');
   $('vmodeSeg').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x.dataset.v === state.vmode));
-  $('showGWrap').hidden = !(state.mode === 'font' && state.view === 'edit');
+  syncToolbar();
   if (state.mode === 'font' && state.view === 'edit') {
     const g = editGlyph();
     if (document.activeElement !== $('gChar')) $('gChar').value = g.unicode != null ? String.fromCodePoint(g.unicode) : '';
@@ -1638,6 +1640,18 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
 })();
 function fitText(){ const t = $('text'); t.style.height = 'auto'; t.style.height = Math.min(120, Math.max(36, t.scrollHeight)) + 'px'; }
 $('text').addEventListener('input', e => { state.text = e.target.value; fitText(); schedule(); autosave(); });
+// Pływający pasek steruje tymi samymi polami wyboru co wcześniej — logika
+// aplikacji została nietknięta, zmienił się tylko sposób klikania.
+const TB = [['tgG', 'showG'], ['tgC', 'showC'], ['tgO', 'showO']];
+function syncToolbar(){
+  for (const [b, c] of TB) $(b).setAttribute('aria-pressed', $(c).checked);
+  $('tgG').hidden = !(state.mode === 'font' && state.view === 'edit');
+}
+for (const [b, c] of TB) $(b).addEventListener('click', () => {
+  const box = $(c); box.checked = !box.checked;
+  box.dispatchEvent(new Event('change', { bubbles: true }));
+  syncToolbar();
+});
 $('showC').addEventListener('change', e => {
   state.showC = e.target.checked;
   if (!state.showC) state.sel = [];          // nie zostawiamy zaznaczenia, którego nie widać

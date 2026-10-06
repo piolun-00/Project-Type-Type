@@ -267,9 +267,30 @@ section h2{margin:0 0 10px; font-size:12px; letter-spacing:.01em}
 .np-h3{margin:14px 0 7px; padding-top:12px; font-size:12px}
 .seg.small button{padding:5px 8px; font-size:12px}
 .seg.icons button{padding:5px 9px; display:inline-flex; align-items:center}
-.seg.icons svg{width:16px; height:16px; display:block}
+.seg.icons svg{width:17px; height:17px; display:block}
 .iconbtn.lg{width:34px; height:34px; border:1px solid var(--line); border-radius:9px; background:var(--sheet)}
 .iconbtn.lg svg{width:17px; height:17px; display:block; margin:auto}
 .iconbtn.lg:hover{border-color:var(--ink)}
 .iconbtn.lg:disabled{opacity:.4; cursor:default}
 .lbl[title], label[title], .hint[title]{cursor:help; text-decoration:underline dotted var(--line); text-underline-offset:3px}
+
+/* --- pływający pasek narzędzi nad kadrem --- */
+.main{position:relative}
+.ic{width:17px; height:17px; display:block}
+.toolbar{position:absolute; left:50%; transform:translateX(-50%); z-index:20;
+  bottom:calc(var(--sampleH, 0px) + 54px);
+  display:flex; align-items:center; gap:8px; padding:6px;
+  background:var(--sheet); border:1px solid var(--line); border-radius:12px;
+  box-shadow:0 8px 26px rgba(0,0,0,.14)}
+.tb-group{display:flex; align-items:center; gap:2px}
+.tb-sep{width:1px; align-self:stretch; background:var(--line); margin:2px 2px}
+.tb-btn{width:30px; height:30px; display:grid; place-items:center; border:0; border-radius:8px;
+  background:transparent; color:var(--muted); cursor:pointer}
+.tb-btn:hover{background:var(--field); color:var(--ink)}
+.tb-btn[aria-pressed=true]{background:var(--ink); color:var(--sheet)}
+.toolbar .seg{background:transparent; padding:0; gap:2px}
+.toolbar .seg button{width:30px; height:30px; padding:0; display:grid; place-items:center; border-radius:8px; color:var(--muted)}
+.toolbar .seg button[aria-pressed=true]{background:var(--ink); color:var(--sheet); box-shadow:none}
+.tb-size{display:flex; align-items:center; gap:7px; font-family:var(--mono); font-size:11.5px; color:var(--muted); padding-right:4px}
+.tb-size input[type=range]{width:86px}
+@media (max-width: 860px){ .toolbar{bottom:calc(var(--sampleH, 0px) + 12px)} }

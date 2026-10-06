@@ -10,6 +10,21 @@
 
 </head>
 <body>
+<!-- ===================================================================
+     IKONY — wszystkie w jednym miejscu. Żeby podmienić ikonę, zmień tylko
+     zawartość odpowiedniego <symbol>. Rysunek ma mieścić się w 16×16.
+     Używaj currentColor, wtedy ikona bierze kolor z przycisku.
+     =================================================================== -->
+<svg class="sprite" aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">
+  <symbol id="ic-a-fill" viewBox="0 0 16 16"><path fill="currentColor" fill-rule="evenodd" d="M8.55 1.9 12.6 12.55h1.75v1.05h-4.7v-1.05h1.15l-.92-2.5H6.05l-.86 2.5h1.2v1.05H2.9v-1.05h1.5L8.55 1.9ZM6.45 8.85h3.1L8.1 4.6 6.45 8.85Z"/></symbol>
+  <symbol id="ic-a-line" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width=".9" stroke-linejoin="round" d="M8.55 1.9 12.6 12.55h1.75v1.05h-4.7v-1.05h1.15l-.92-2.5H6.05l-.86 2.5h1.2v1.05H2.9v-1.05h1.5L8.55 1.9Z"/><path fill="none" stroke="currentColor" stroke-width=".9" stroke-linejoin="round" d="M6.45 8.85h3.1L8.1 4.6 6.45 8.85Z"/></symbol>
+  <symbol id="ic-grid" viewBox="0 0 16 16"><path d="M1.8 6.1h12.4M1.8 9.9h12.4M6.1 1.8v12.4M9.9 1.8v12.4" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></symbol>
+  <symbol id="ic-marks" viewBox="0 0 16 16"><path d="M3 12.6V6.4A3.4 3.4 0 0 1 6.4 3h6.2" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><circle cx="3" cy="12.6" r="1.9" fill="currentColor"/><circle cx="12.6" cy="3" r="1.9" fill="currentColor"/></symbol>
+  <symbol id="ic-orig" viewBox="0 0 16 16"><rect x="5.4" y="5.4" width="8.2" height="8.2" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M2.4 10.6v-7a1.2 1.2 0 0 1 1.2-1.2h7" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="2.2 1.8"/></symbol>
+  <symbol id="ic-smooth" viewBox="0 0 16 16"><path d="M1.5 12.5c3.5 0 3-9 13-9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="6.6" cy="7.2" r="2.2" fill="currentColor"/></symbol>
+  <symbol id="ic-sharp" viewBox="0 0 16 16"><path d="M1.5 13.5 7.5 3l7 10.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/><rect x="5.5" y="1" width="4" height="4" rx=".5" fill="currentColor"/></symbol>
+  <symbol id="ic-del" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.4 8h5.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+</svg>
 <div class="app">
   <aside class="rail">
     <div class="brand"><h1>Type Type</h1><span>v0.13</span></div>
@@ -23,9 +38,9 @@
           <label class="toggle" style="color:var(--ink)">Y <input class="num" id="vY" type="number" step="1"></label></div>
         </div>
         <div class="btn-row" id="vBtns" style="margin-bottom:12px" hidden>
-          <button class="iconbtn lg" id="vSmooth" title="Wygładź węzeł" aria-label="Wygładź węzeł"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 12.5c3.5 0 3-9 13-9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="6.6" cy="7.2" r="2.2" fill="currentColor"/></svg></button>
-          <button class="iconbtn lg" id="vSharp" title="Wyprostuj węzeł" aria-label="Wyprostuj węzeł"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 13.5 7.5 3l7 10.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/><rect x="5.5" y="1" width="4" height="4" rx=".5" fill="currentColor"/></svg></button>
-          <button class="iconbtn lg" id="vDel" title="Usuń węzeł (Backspace)" aria-label="Usuń węzeł"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.4 8h5.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+          <button class="iconbtn lg" id="vSmooth" title="Wygładź węzeł" aria-label="Wygładź węzeł"><svg class="ic" aria-hidden="true"><use href="#ic-smooth"/></svg></button>
+          <button class="iconbtn lg" id="vSharp" title="Wyprostuj węzeł" aria-label="Wyprostuj węzeł"><svg class="ic" aria-hidden="true"><use href="#ic-sharp"/></svg></button>
+          <button class="iconbtn lg" id="vDel" title="Usuń węzeł (Backspace)" aria-label="Usuń węzeł"><svg class="ic" aria-hidden="true"><use href="#ic-del"/></svg></button>
         </div>
         <button class="linkbtn" id="vReset">Przywróć oryginalny kontur</button>
       </div>
@@ -193,18 +208,26 @@
         <input id="gChar" type="text" maxlength="4" aria-label="Znak do edycji" spellcheck="false">
         <button class="iconbtn" id="gNext" aria-label="Następny glif">›</button>
         <span class="gname" id="gName"></span>
-        <div class="seg icons" id="vmodeSeg" role="group" aria-label="Tryb edycji">
-          <button data-v="corners" aria-pressed="true" title="Narożniki — ustawiasz zaokrąglenie" aria-label="Narożniki"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M8 1.8 14.3 14.2h-2.6l-1-2.2H5.3l-1 2.2H1.7L8 1.8Zm0 4.4L6.4 9.8h3.2L8 6.2Z"/></svg></button>
-          <button data-v="contour" aria-pressed="false" title="Kontur — przesuwasz węzły i uchwyty" aria-label="Kontur"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" d="M8 2.4 13.7 13.6h-2.1l-1-2.2H5.4l-1 2.2H2.3L8 2.4Z"/><path fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" d="M8 6 6.3 10h3.4L8 6Z"/></svg></button>
-        </div>
       </div>
       <textarea class="textin" id="text" rows="1" aria-label="Tekst podglądu" spellcheck="false"></textarea>
-      <label class="size">Skala <input type="range" id="size" min="40" max="400" step="2" style="--c:var(--ink)"></label>
-      <label class="toggle"><input type="checkbox" id="showC" checked> Narożniki</label>
-      <label class="toggle"><input type="checkbox" id="showO"> Oryginał</label>
-      <label class="toggle" id="showGWrap" hidden><input type="checkbox" id="showG" checked> Siatka</label>
     </div>
     <div class="stage"><div class="sheet" id="sheet"></div></div>
+    <div class="toolbar" id="toolbar">
+      <div class="tb-group" id="tbTools">
+<div class="seg icons" id="vmodeSeg" role="group" aria-label="Tryb edycji">
+            <button data-v="corners" aria-pressed="true" title="Narożniki — ustawiasz zaokrąglenie" aria-label="Narożniki"><svg class="ic" aria-hidden="true"><use href="#ic-a-fill"/></svg></button>
+            <button data-v="contour" aria-pressed="false" title="Kontur — przesuwasz węzły i uchwyty" aria-label="Kontur"><svg class="ic" aria-hidden="true"><use href="#ic-a-line"/></svg></button>
+          </div>
+        </div>
+      <div class="tb-sep"></div>
+      <div class="tb-group">
+        <button class="tb-btn" id="tgG" aria-pressed="true" title="Siatka" aria-label="Siatka"><svg class="ic" aria-hidden="true"><use href="#ic-grid"/></svg></button>
+        <button class="tb-btn" id="tgC" aria-pressed="true" title="Znaczniki narożników" aria-label="Znaczniki"><svg class="ic" aria-hidden="true"><use href="#ic-marks"/></svg></button>
+        <button class="tb-btn" id="tgO" aria-pressed="false" title="Oryginał pod spodem" aria-label="Oryginał"><svg class="ic" aria-hidden="true"><use href="#ic-orig"/></svg></button>
+      </div>
+      <div class="tb-sep"></div>
+      <label class="tb-size">Skala <input type="range" id="size" min="40" max="400" step="2" style="--c:var(--ink)"></label>
+    </div>
     <div class="foot">
       <span class="count" id="count"></span>
       <span id="note"></span>
@@ -235,6 +258,7 @@
     <p class="hint">Pliki zostają w twojej przeglądarce — nic nie jest wysyłane.</p>
   </div>
 </div>
+<span hidden><input type="checkbox" id="showC" checked><input type="checkbox" id="showO"><input type="checkbox" id="showG" checked><span id="showGWrap"></span></span>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="vendor/opentype.min.js"></script>
