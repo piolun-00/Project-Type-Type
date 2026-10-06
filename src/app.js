@@ -710,7 +710,12 @@ function renderCount(counts){
 }
 
 /* ================= wejście: pliki ================= */
-function setMsg(t, err){ const m=$('msg'); m.textContent=t||''; m.className='msg'+(err?' err':''); }
+function setMsg(t, err){
+  for (const id of ['msg', 'dropMsg']) {
+    const m = $(id); if (!m) continue;
+    m.textContent = t || ''; m.className = 'msg' + (err ? ' err' : '');
+  }
+}
 function loadDemo(){
   const { shapes } = parseSvg(DEMO);
   useShapes(shapes, 'demo', 'kształty demo');
@@ -745,7 +750,7 @@ async function handleFile(file){
       const { shapes, notes } = parseSvg(txt);
       state.hash = 'svg-' + hashBytes(new TextEncoder().encode(txt));
       useShapes(shapes, 'svg', name); state.svgName = name.replace(/\.svg$/i,'');
-      offerRestore();
+      closeFileModal(); offerRestore();
       if (notes.length) setMsg('Uwaga: ' + notes.join('; ') + '.');
     } else if (['ttf','otf','woff'].includes(ext)) {
       if (!window.opentype) throw new Error('Nie udało się wczytać biblioteki do fontów (vendor/opentype.min.js). Odśwież stronę.');
@@ -754,7 +759,7 @@ async function handleFile(file){
       state.srcTables = (() => { try { return RounderVF.readTables(new Uint8Array(buf)); } catch(e) { return null; } })();
       state.hash = 'font-' + hashBytes(new Uint8Array(buf));
       useFont(font, name);
-      offerRestore();
+      closeFileModal(); offerRestore();
     } else if (ext === 'woff2') {
       throw new Error('WOFF2 nie jest jeszcze obsługiwany. Wgraj wersję TTF lub OTF.');
     } else throw new Error('Obsługiwane pliki: TTF, OTF, WOFF i SVG.');
@@ -1648,6 +1653,18 @@ $('viewSeg').addEventListener('click', e => { const b = e.target.closest('button
   if (b.dataset.v === 'edit' && state.view !== 'edit' && !glyphCmds(editGlyph()).length) state.edit = firstGlyph();
   state.view = b.dataset.v; state.sel = []; syncUI(); updatePanel(); schedule(); });
 window.addEventListener('resize', () => { if (state.view === 'glyphs' || state.view === 'edit' || state.mode === 'svg') schedule(); });
+
+const fileModal = $('fileModal');
+function openFileModal(){
+  fileModal.hidden = false;
+  setMsg('');
+  setTimeout(() => ($('lic').checked ? $('drop') : $('lic')).focus(), 0);
+}
+function closeFileModal(){ fileModal.hidden = true; }
+$('openFile').addEventListener('click', openFileModal);
+$('fileModalClose').addEventListener('click', closeFileModal);
+$('fileModalBg').addEventListener('click', closeFileModal);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !fileModal.hidden) { e.stopPropagation(); closeFileModal(); } }, true);
 
 const drop = $('drop'), lic = $('lic');
 function setLic(){
