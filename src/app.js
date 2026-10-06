@@ -2011,15 +2011,16 @@ $('preview').addEventListener('click', e => {
   if (state.view !== 'edit' && !e.target.closest('#text')) startTextEdit();
 });
 function startTextEdit(){
-  const t = $('text'), art = $('previewArt');
-  t.hidden = false; art.hidden = true;
+  const t = $('text');
+  $('preview').classList.add('editing');
+  t.hidden = false;
   t.value = state.text;
   t.focus(); t.select();
 }
 function endTextEdit(){
   const t = $('text');
   if (t.hidden) return;
-  t.hidden = true; $('previewArt').hidden = false;
+  t.hidden = true; $('preview').classList.remove('editing');
   schedule();
 }
 $('text').addEventListener('blur', endTextEdit);
