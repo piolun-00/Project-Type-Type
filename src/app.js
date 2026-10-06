@@ -14,7 +14,9 @@ const state = {
   font: null, fontFile: '',
   shapes: [], box: null, svgName: '',
   ref: 100, strokeAuto: 8,
-  view: 'text',
+  view: 'glyphs',
+  showT: false,     // pasek z podglądem tekstu pod kadrem
+  tool: 'select',   // narzędzie w trybie Kontur: 'select' (V) albo 'pen' (P)
   text: 'Zażółć gęślą jaźń\nĄĆĘŁŃÓŚŹŻ Hamburgefonstiv 0123',
   union: true,
   size: 110,
@@ -29,7 +31,8 @@ const state = {
   edit: 0,
   sel: [],
   ovr: {},          // klucz glifu → { scale, nodes:[{x,y,type,mode,amt,absorb}], force:[{x,y}] }
-  base: {},         // indeks edytowanego glifu → indeks glifu bazowego
+  base: {},         // ręcznie wskazana baza: indeks glifu → indeks glifu bazowego
+  baseOn: false,    // tryb bazy: raz włączony zostaje przy przewijaniu glifów
   selBase: [],      // zaznaczenie po stronie bazy (osobne od state.sel)
   clip: null,       // schowek: { type, mode, amt, absorb, from }
   hash: '',
@@ -353,7 +356,7 @@ const LSKEY = () => 'type-type:' + state.hash;
 const LSKEY_OLD = () => 'szlifiernia:' + state.hash;
 function settingsObj(){
   return { app:'Type Type', version:1, source:{ name: state.mode === 'font' ? state.fontFile : (state.svgName || ''), hash: state.hash },
-    p: state.p, ovr: state.ovr, base: state.base, union: state.union, strokeOv: state.strokeOv, famName: $('famName').value, text: state.text, saved: Date.now() };
+    p: state.p, ovr: state.ovr, base: state.base, baseOn: state.baseOn, union: state.union, strokeOv: state.strokeOv, famName: $('famName').value, text: state.text, saved: Date.now() };
 }
 function autosave(){
   if (!state.hash || state.source === 'demo') return;
@@ -365,6 +368,7 @@ function applySettings(o, fromFile){
   state.p = Object.assign({}, DEF, o.p || {});
   state.ovr = o.ovr && typeof o.ovr === 'object' ? o.ovr : {};
   state.base = o.base && typeof o.base === 'object' ? o.base : {};
+  state.baseOn = !!o.baseOn;
   if (typeof o.union === 'boolean') { state.union = o.union; $('union').checked = o.union; }
   state.strokeOv = o.strokeOv > 0 ? o.strokeOv : null; $('strokeOv').value = state.strokeOv || '';
   if (o.famName && state.mode === 'font') $('famName').value = o.famName;
@@ -402,6 +406,39 @@ function refreshDetection(){
   }
   $('strokeAuto').textContent = state.strokeAuto + ' j.';
   detKey = [state.p.angleMin, state.p.endTol, state.p.endMax, state.p.merge, state.union ? 1 : 0].join('|');
+}
+
+/* ================= pasek podglądu tekstu pod kadrem ================= */
+let prevCache = { key: '', html: '', h: 0 };
+function renderPreview(rp){
+  const el = $('preview'), art = $('previewArt');
+  if (!renderPreview.init) { $('text').hidden = true; renderPreview.init = 1; }
+  const on = state.showT && state.mode === 'font' && state.font;
+  el.hidden = !on;
+  if (!on) { document.documentElement.style.setProperty('--previewH', '0px'); return; }
+  const f = state.font, upm = f.unitsPerEm, asc = f.ascender, H = asc - f.descender;
+  const edytuje = state.view === 'edit';
+  const g = edytuje ? editGlyph() : null;
+  const lines = edytuje ? sampleLines(g) : state.text.split('\n').slice(0, 3);
+  const sPx = 30 / upm, lh = H * 1.05;
+  const key = state.loadId + '|' + (edytuje ? g.index : 't') + '|' + lines.join('\u0001') + '|'
+            + JSON.stringify(rp) + '|' + detKey + '|' + JSON.stringify(state.ovr);
+  if (prevCache.key !== key) {
+    let d = '', w = 0;
+    lines.forEach((t, li) => {
+      const L = layoutLine(f, t, asc + li * lh); w = Math.max(w, L.w);
+      for (const it of L.items) {
+        const gg = it.g, gc = glyphCmds(gg); if (!gc.length) continue;
+        d += `<path data-gi="${gg.index}"${g && gg.index === g.index ? ' class="hl"' : ''} d="${R.toPathData(roundShape('g' + gg.index, gc, 'nonzero', rp).cm, it.x, it.y, 1, true, 1)}"/>`;
+      }
+    });
+    const h = lh * (lines.length - 1) + H;
+    prevCache = { key, h: Math.ceil(h * sPx),
+      html: `<svg xmlns="http://www.w3.org/2000/svg" width="${(w * sPx).toFixed(0)}" height="${(h * sPx).toFixed(0)}" viewBox="0 0 ${w.toFixed(1)} ${h.toFixed(1)}"><g class="glyph">${d}</g></svg>` };
+    art.innerHTML = prevCache.html;
+  }
+  art.title = edytuje ? '' : 'Kliknij obok liter, żeby zmienić tekst';
+  document.documentElement.style.setProperty('--previewH', el.offsetHeight + 'px');
 }
 
 /* ================= render ================= */
@@ -516,7 +553,7 @@ function renderGrid(box, px, asc, bezPodpisow){
   s += `<line class="metric baseline" x1="${x0}" x2="${x1}" y1="${asc}" y2="${asc}"/>`;
   if (bezPodpisow) return `<g aria-hidden="true">${s}</g>`;
   s += `<text class="metric-label" x="${(x0 + 4 / px).toFixed(2)}" y="${(asc - 4 / px).toFixed(2)}" font-size="${fs.toFixed(2)}">linia bazowa 0</text>`;
-  s += `<text class="metric-label" x="${(x1 - 4 / px).toFixed(2)}" y="${(box.y + box.h - 4 / px).toFixed(2)}" font-size="${fs.toFixed(2)}" text-anchor="end">siatka ${minor} j., linie główne co ${major} j.</text>`;
+  s += `<text class="metric-label" x="${(x0 + 4 / px).toFixed(2)}" y="${(box.y + box.h - 4 / px).toFixed(2)}" font-size="${fs.toFixed(2)}">siatka ${minor} j., linie główne co ${major} j.</text>`;
   return `<g aria-hidden="true">${s}</g>`;
 }
 // zwraca gotowy HTML widoku edycji
@@ -525,23 +562,6 @@ function renderEdit(rp, counts){
   const H = asc - desc, adv = g.advanceWidth || upm * 0.5, key = 'g' + g.index;
   const st = document.querySelector('.stage');
   const contour = state.vmode === 'contour';
-  // przykładowe zdanie (na dole)
-  const lines = sampleLines(g), sPx = 26 / upm, lh = H * 1.05;
-  let sPaths = '', sW = 0;
-  lines.forEach((t, li) => {
-    const L = layoutLine(f, t, asc + li * lh); sW = Math.max(sW, L.w);
-    for (const it of L.items) {
-      const gg = it.g, gc = glyphCmds(gg); if (!gc.length) continue;
-      sPaths += `<path data-gi="${gg.index}"${gg.index === g.index ? ' class="hl"' : ''} d="${R.toPathData(roundShape('g' + gg.index, gc, 'nonzero', rp).cm, it.x, it.y, 1, true, 1)}"/>`;
-    }
-  });
-  const sH = lh * (lines.length - 1) + H;
-  // Pasek ze zdaniem rezerwuje miejsce zawsze na dwie linie, nawet gdy rysujemy jedną.
-  // Inaczej dla znaków bez pangramu (np. „.”) na glif zostawało więcej miejsca
-  // i ten sam font pokazywał się w innej skali przy różnych znakach.
-  const sHres = lh + H;
-  const sampleSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${(sW * sPx).toFixed(0)}" height="${(sH * sPx).toFixed(0)}" viewBox="0 0 ${sW.toFixed(1)} ${sH.toFixed(1)}"><g class="glyph">${sPaths}</g></svg>`;
-  const sampleH = Math.ceil(sHres * sPx + 18);
   // glif: wyśrodkowany i dopasowany do wolnego miejsca
   // Kadr ma STAŁY rozmiar dla całego fontu, żeby każdy glif był w tej samej skali
   // i przełączanie znaków niczym nie szarpało. Liczymy go z metryk całego fontu
@@ -558,10 +578,10 @@ function renderEdit(rp, counts){
   // Podgląd bazy obok edytowanego glifu. Obie połowy mają tę samą skalę i ten sam
   // kadr, a że baza i glif pochodny mają identyczne współrzędne, jedno zaznaczenie
   // podświetla się samo po obu stronach — nic nie trzeba dopasowywać.
-  const baseIdx = state.base[state.edit];
-  const bg = (baseIdx != null && baseIdx !== g.index && f.glyphs.get(baseIdx)) || null;
+  const bIdx = curBase();
+  const bg = (bIdx != null && bIdx !== g.index && f.glyphs.get(bIdx)) || null;
   const split = !!bg;
-  const areaW = Math.max(200, st.clientWidth - 8), areaH = Math.max(160, st.clientHeight - 8 - sampleH);
+  const areaW = Math.max(200, st.clientWidth - 8), areaH = Math.max(160, st.clientHeight - 8);
   const paneW = split ? (areaW - 14) / 2 : areaW;
   const px = Math.min((paneW - 48) / gw, (areaH - 48) / gh) * state.ezoom / 100;
   const hitR = 13 / Math.max(px, 1e-6), mR = 5.5 / Math.max(px, 1e-6);
@@ -620,6 +640,7 @@ function renderEdit(rp, counts){
     }));
     if (vec) marks += renderContourMarks(curCons(), asc, px);
     else if (contour && isBase && cmds.length) marks += renderContourMarks(toNodes(cmds), asc, px, true);
+    else if (!isBase && state.tool === 'pen' && cmds.length) marks += penSegs(toNodes(cmds), asc, px);
     // przy podziale podpisy linii metrycznych tylko raz, po lewej stronie
     const gridSvg = state.showG ? renderGrid(box, px, asc, split ? !isBase : false) : '';
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.floor(box.w * px)}" height="${Math.floor(box.h * px)}" viewBox="${box.x.toFixed(1)} ${box.y.toFixed(1)} ${box.w.toFixed(1)} ${box.h.toFixed(1)}" role="img" aria-label="${isBase ? 'Glif bazowy' : 'Edytowany glif'}">`
@@ -631,7 +652,7 @@ function renderEdit(rp, counts){
       + `<div class="pane-wrap"><span class="pane-lbl">Edytujesz — ${etyk(g)}</span><div class="pane"><div class="pane-box">${pane(g, false)}</div></div></div>`
     : pane(g, false);
   $('note').textContent = `${g.name || 'glif ' + g.index}, szerokość ${adv} j.`;
-  return `<div class="edit-wrap"><div class="edit-main">${glyphSvg}</div><div class="edit-sample" style="height:${sampleH}px">${sampleSvg}</div></div>`;
+  return { main: glyphSvg };
 }
 
 function render(){
@@ -652,12 +673,16 @@ function render(){
       if (showC) marks += `<circle class="m-${t}" cx="${(tx + c.v.x).toFixed(1)}" cy="${(flip ? ty - c.v.y : ty + c.v.y).toFixed(1)}" r="${r.toFixed(2)}"/>`;
     }));
   };
+  renderPreview(rp);
   const editing = state.mode === 'font' && state.view === 'edit';
   sheet.classList.toggle('editing', editing); sheet.parentElement.classList.toggle('edit-mode', editing);
   if (editing) {
     const src0 = sheet.querySelector('.edit-main .pane') || sheet.querySelector('.edit-main');
     const keep = src0 ? [src0.scrollLeft, src0.scrollTop] : null;
-    sheet.innerHTML = renderEdit(rp, counts);
+    const R2 = renderEdit(rp, counts);
+    const wrap = sheet.querySelector('.edit-wrap'), em = wrap && wrap.querySelector('.edit-main');
+    if (em) em.innerHTML = R2.main;
+    else sheet.innerHTML = `<div class="edit-wrap"><div class="edit-main">${R2.main}</div></div>`;
     lastPane = null;
     if (keep) for (const el of (sheet.querySelectorAll('.edit-main .pane').length ? sheet.querySelectorAll('.edit-main .pane') : sheet.querySelectorAll('.edit-main')))
       { el.scrollLeft = keep[0]; el.scrollTop = keep[1]; }
@@ -729,7 +754,7 @@ function useShapes(shapes, source, name){
 function useFont(font, name, boot){
   state.mode='font'; state.source = boot ? 'boot' : 'font'; state.font=font; state.fontFile=name; state.shapes=[];
   state.ovr = {}; state.base = {}; state.sel = []; hist.undo.length = 0; hist.redo.length = 0; state.edit = firstGlyph();
-  if (state.view === 'edit') state.view = 'text';
+  if (state.view === 'edit') state.view = 'glyphs';
   state.ref = font.unitsPerEm; state.loadId = (state.loadId||0)+1; cache.clear(); refreshDetection(); syncUI();
   const fam = (font.names.fontFamily && (font.names.fontFamily.en || Object.values(font.names.fontFamily)[0])) || name.replace(/\.\w+$/,'');
   $('famName').value = fam + ' Rounded';
@@ -981,9 +1006,6 @@ function updatePanel(){
   $('vPanel').hidden = !contour; $('cPanel').hidden = false;
   if (contour) {
     const nodes = state.vsel.filter(s => s.part === 'node');
-    $('vHint').textContent = !state.vsel.length
-      ? 'Edytujesz kontur źródłowy, przed zaokrągleniem. Kliknij węzeł na glifie; dwuklik na linii dodaje nowy.'
-      : `Zaznaczone: ${nodes.length ? nodes.length + (nodes.length === 1 ? ' węzeł' : ' węzły') : ''}${nodes.length && state.vsel.length > nodes.length ? ' i ' : ''}${state.vsel.length > nodes.length ? (state.vsel.length - nodes.length) + ' uchwyt' : ''}.`;
     $('vBtns').hidden = !nodes.length;
     $('vCoords').hidden = nodes.length !== 1;
     if (nodes.length === 1) {
@@ -993,25 +1015,18 @@ function updatePanel(){
     $('vReset').hidden = !(E && E.path);
   }
   $('npTitle').textContent = `Glif ${g.unicode != null ? '„' + String.fromCodePoint(g.unicode) + '”' : (g.name || '')}`;
-  const gs = E && E.scale != null ? E.scale : 100;
-  $('s-gscale').value = gs; $('n-gscale').value = gs; paint($('s-gscale'));
   const sel = selectedJoints(info), corners = sel.filter(j => j.c), points = sel.filter(j => !j.c);
-  $('npHint').textContent = !sel.length
-    ? (contour
-       ? 'Zaznacz węzeł na konturze, żeby ustawić jego zaokrąglenie.'
-       : 'Nic nie zaznaczono. Puste kółka na glifie to punkty, których algorytm nie uznał za narożniki — po kliknięciu możesz je wymusić. Strzałki przeskakują między narożnikami.')
-    : `Zaznaczone: ${corners.length ? corners.length + ' ' + (corners.length === 1 ? 'narożnik' : 'narożniki') : ''}${corners.length && points.length ? ' i ' : ''}${points.length ? points.length + ' ' + (points.length === 1 ? 'punkt bez narożnika' : 'punkty bez narożnika') : ''}.`;
   $('npCtrls').hidden = !corners.length;
   if (corners.length) {
     const n = corners[0].n || NODE_DEF, c = corners[0].c;
-    pressSeg('npType', n.type, v => v === 'end' && !corners.every(j => j.c.endLen > 0));
     pressSeg('npMode', n.mode);
     pressSeg('npAbsorb', n.absorb);
     const off = corners.every(j => effType(j.n || NODE_DEF, j.c) === 'off');
     $('s-namt').value = n.amt; $('n-namt').value = n.amt; paint($('s-namt'));
     $('s-namt').disabled = $('n-namt').disabled = off;
     $('npMode').querySelectorAll('button').forEach(b => b.disabled = off);
-    $('npAmtLabel').textContent = n.mode === 'abs' ? 'Wartość (skala suwaka, niezależna)' : '% suwaka globalnego';
+    $('npAmtLabel').textContent = n.mode === 'abs' ? 'Wartość' : '% suwaka';
+    $('npAmtLabel').title = n.mode === 'abs' ? 'Wartość niezależna od suwaka globalnego' : 'Procent wartości suwaka globalnego dla tego typu narożnika';
   }
   const forcedSel = corners.filter(j => j.c.forced);
   const fb = $('npForce');
@@ -1027,6 +1042,7 @@ function updatePanel(){
     ob.querySelector('span').textContent = `${orph.length} ${orph.length === 1 ? 'korekta nie trafia' : 'korekt nie trafia'} w żaden narożnik — prawdopodobnie zmieniły się progi wykrywania.`;
     $('npOrph').onclick = () => { checkpoint(); const Ee = state.ovr[info.key]; Ee.nodes = Ee.nodes.filter(n => !orph.includes(n)); cleanOvr(info.key); updatePanel(); schedule(); autosave(); };
   } else { ob.textContent = ''; ob.className = 'msg'; }
+  animBar(renderCtxBar);
   renderBase();
   const keys = Object.keys(state.ovr).filter(k => k[0] === 'g' && hasOvr(k));
   $('npListWrap').hidden = !keys.length;
@@ -1048,6 +1064,13 @@ function cycleNode(d){
 /* ================= baza glifu (źródło korekt do przeniesienia) ================= */
 const TYPE_PL = { end: 'zakończenie', out: 'zewnętrzny', in: 'wewnętrzny', off: 'ostry' };
 // litera bazowa z rozkładu Unicode: Ă → A, ó → o. Nie zadziała dla Ł czy ø — tam wybierasz ręcznie.
+function curBase(){
+  if (!state.baseOn || state.mode !== 'font' || !state.font) return null;
+  const g = editGlyph();
+  if (state.base[state.edit] != null) return state.base[state.edit];
+  const s = suggestBase(g);
+  return s ? s.i : null;
+}
 function suggestBase(g){
   if (g.unicode == null) return null;
   const ch = String.fromCodePoint(g.unicode), d = ch.normalize('NFD');
@@ -1057,7 +1080,7 @@ function suggestBase(g){
 }
 // narożniki glifu bazowego wraz z ewentualną ręczną korektą przy każdym z nich
 function baseData(){
-  const bi = state.base[state.edit];
+  const bi = curBase();
   if (bi == null) return null;
   const f = state.font, bg = f.glyphs.get(bi);
   if (!bg) return null;
@@ -1084,7 +1107,8 @@ function renderBase(){
   const on = state.mode === 'font' && state.view === 'edit';
   $('baseWrap').hidden = !on;
   if (!on) return;
-  const g = editGlyph(), bi = state.base[state.edit];
+  const g = editGlyph(), bi = curBase();
+  baseBtnLabel();
   const sug = suggestBase(g);
   const sb = $('baseSuggest');
   if (sug && bi == null) { sb.hidden = false; sb.textContent = 'Użyj „' + sug.ch + '”'; sb.dataset.i = sug.i; }
@@ -1116,14 +1140,14 @@ function renderBase(){
     el.append(pos, typ, val);
   };
   const row = $('baseNode'), copyBtn = $('baseCopy'), applyBtn = $('baseApply');
-  msg.textContent = 'Baza: glif ' + nazwa + '.';
+  msg.textContent = 'Baza: ' + nazwa + '.';
   if (state.selBase.length === 1) {
     // zaznaczony węzeł po stronie bazy — można z niego skopiować ustawienie
     let r = D.rows.find((q) => near(q.v, state.selBase[0]));
     // w trybie Kontur węzeł może nie być narożnikiem — wtedy niesie samo położenie
     if (!r && state.vmode === 'contour') r = { v: state.selBase[0], n: null, t: null };
     $('baseNodeLbl').textContent = 'Zaznaczony węzeł w bazie';
-    if (!r) { msg.textContent = 'Baza: glif ' + nazwa + '. Ten punkt nie jest narożnikiem.'; box.hidden = true; }
+    if (!r) { msg.textContent = 'Baza: ' + nazwa + '. To nie narożnik.'; box.hidden = true; }
     else {
       wiersz(r, row);
       copyBtn.hidden = false; applyBtn.hidden = true;
@@ -1136,7 +1160,7 @@ function renderBase(){
     // zaznaczony węzeł po stronie edytowanego glifu — pokazujemy, co baza ma w tym miejscu
     const r = baseAt(state.sel[0]);
     $('baseNodeLbl').textContent = 'Baza w tym samym miejscu';
-    if (!r) { msg.textContent = 'Baza: glif ' + nazwa + '. W tym miejscu baza nie ma narożnika.'; box.hidden = true; }
+    if (!r) { msg.textContent = 'Baza: ' + nazwa + '. Tu nie ma narożnika.'; box.hidden = true; }
     else {
       wiersz(r, row);
       copyBtn.hidden = true; applyBtn.hidden = false;
@@ -1145,7 +1169,7 @@ function renderBase(){
       box.hidden = false;
     }
   } else {
-    msg.textContent = 'Baza: glif ' + nazwa + '. Kliknij węzeł po lewej, żeby skopiować jego ustawienie, albo po prawej, żeby je wkleić.';
+    msg.textContent = 'Baza: ' + nazwa + '. Kliknij po lewej, żeby kopiować; po prawej, żeby wkleić.';
     box.hidden = true;
   }
   renderClip();
@@ -1181,6 +1205,24 @@ function renderClip(){
   if (c.x != null) pos.textContent = Math.round(c.x) + ', ' + Math.round(c.y);
   w.hidden = false;
 }
+function baseBtnLabel(){
+  const bi = curBase();
+  const bg = bi != null && state.font && state.font.glyphs.get(bi);
+  $('baseBtn').textContent = state.baseOn ? (bg ? 'Baza: ' + glyphLab(bg).replace(/[„”]/g, '') : 'Baza: brak') : 'Baza';
+  $('baseBtn').classList.toggle('primary', state.baseOn);
+  $('baseBtn').setAttribute('aria-pressed', state.baseOn);
+}
+function openBasePop(){
+  $('basePop').hidden = false; $('baseBtn').setAttribute('aria-expanded', 'true');
+  setTimeout(() => { $('baseChar').focus(); $('baseChar').select(); }, 0);
+}
+function toggleBase(){
+  state.baseOn = !state.baseOn;
+  if (!state.baseOn) closeBasePop();
+  renderBase(); syncUI(); schedule(); autosave();
+  if (state.baseOn) openBasePop();
+}
+function closeBasePop(){ $('basePop').hidden = true; $('baseBtn').setAttribute('aria-expanded', 'false'); }
 function setBase(i){
   if (i == null) delete state.base[state.edit]; else state.base[state.edit] = i;
   renderBase(); schedule(); autosave();
@@ -1300,6 +1342,9 @@ function toFont(e){
 }
 function vectorDown(e, key){
   const [ci, ni, part] = key.split(','); const s = { ci: +ci, ni: +ni, part };
+  // Alt/Option + klik w węzeł usuwa go. Na uchwytach Alt dalej rozrywa gładkość,
+  // więc te dwa gesty sobie nie wchodzą w drogę.
+  if (part === 'node' && e.altKey) { state.vsel = [s]; vectorDelete(); return; }
   if (e.shiftKey) { const i = state.vsel.findIndex(q => vkey(q) === key); if (i >= 0) state.vsel.splice(i, 1); else state.vsel.push(s); }
   else if (!state.vsel.some(q => vkey(q) === key)) state.vsel = [s];
   const cons = curCons();
@@ -1378,6 +1423,19 @@ function vectorSetXY(axis, v){
   const d = Math.round(v) - Math.round(n[axis]); if (!d) return;
   vectorNudge(axis === 'x' ? d : 0, axis === 'y' ? d : 0);
 }
+// Same pola trafień odcinków — żeby piórem dało się wstawić węzeł także wtedy,
+// gdy pracujesz na narożnikach i konturu nie widać.
+function penSegs(cons, asc, px){
+  let s = '';
+  cons.forEach((C, ci) => C.nodes.forEach((a, i) => {
+    const b = C.nodes[(i + 1) % C.nodes.length];
+    const d = (a.out || b.in)
+      ? `M${a.x} ${asc - a.y}C${(a.out || a).x} ${asc - (a.out || a).y} ${(b.in || b).x} ${asc - (b.in || b).y} ${b.x} ${asc - b.y}`
+      : `M${a.x} ${asc - a.y}L${b.x} ${asc - b.y}`;
+    s += `<path class="v-seg" data-vs="${ci},${i}" d="${d}"/>`;
+  }));
+  return s;
+}
 function renderContourMarks(cons, asc, px, ro){
   let s = '';
   const r = 4.5 / px, hr = 3.6 / px, hit = 10 / px;
@@ -1430,12 +1488,12 @@ function syncUI(){
   $('expLocked').hidden = !locked; $('expNote').hidden = locked;
   $('expFont').disabled = locked; $('expVF').disabled = locked;
   $('famName').disabled = locked;
-  $('text').style.display = state.mode === 'font' && state.view === 'text' ? '' : 'none';
+
   $('viewSeg').style.display = state.mode === 'font' ? '' : 'none';
   $('viewSeg').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x.dataset.v === state.view));
   $('editBar').hidden = !(state.mode === 'font' && state.view === 'edit');
   $('vmodeSeg').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x.dataset.v === state.vmode));
-  $('showGWrap').hidden = !(state.mode === 'font' && state.view === 'edit');
+  syncToolbar();
   if (state.mode === 'font' && state.view === 'edit') {
     const g = editGlyph();
     if (document.activeElement !== $('gChar')) $('gChar').value = g.unicode != null ? String.fromCodePoint(g.unicode) : '';
@@ -1569,6 +1627,11 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
     if (e.button !== 0 || e.target.closest('input,textarea,button,select,a')) return;
     const vp = e.target.closest('[data-vp]');
     if (vp && !state.spacePan) { vectorDown(e, vp.dataset.vp); return; }
+    // pióro: pojedynczy klik na linii wstawia węzeł (bez pióra trzeba dwukliku)
+    if (state.tool === 'pen' && !state.spacePan) {
+      const seg = e.target.closest('[data-vs]');
+      if (seg) { const [ci, si] = seg.dataset.vs.split(',').map(Number), p = toFont(e); if (p) vectorInsert(ci, si, p); return; }
+    }
     // panel bazy jest tylko do oglądania i zaznaczania — sprawdzamy go przed trybem Kontur,
     // bo tamta gałąź wychodzi wcześniej i zjadała te kliknięcia
     const hitB0 = e.target.closest('[data-base-node]');
@@ -1578,7 +1641,15 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
       return;
     }
     const hit = e.target.closest('[data-node]');
-    if (hit) { const [x, y] = hit.dataset.node.split(',').map(Number); selectNode({ x, y }, e.shiftKey); return; }
+    if (hit) {
+      const [x, y] = hit.dataset.node.split(',').map(Number);
+      if (state.tool === 'pen' && e.altKey) {
+        const f = nodeAtPos(editGlyph(), { x, y });
+        if (f) { state.vsel = [{ ci: f.ci, ni: f.ni, part: 'node' }]; vectorDelete(); return; }
+        toast('W tym miejscu nie ma węzła konturu'); return;
+      }
+      selectNode({ x, y }, e.shiftKey); return;
+    }
     // klik obok narożnika odznacza — bez tego zaznaczenie wisiało aż do Escape
     if (state.mode === 'font' && state.view === 'edit' && state.vmode === 'corners'
         && !state.spacePan && !e.shiftKey && (state.sel.length || state.selBase.length)) { state.sel = []; state.selBase = []; updatePanel(); schedule(); }
@@ -1619,12 +1690,12 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
   };
   st.addEventListener('pointerup', end); st.addEventListener('pointercancel', end);
   // Ctrl/Cmd + kółko albo szczypanie na gładziku = powiększenie wokół kursora
-  st.addEventListener('wheel', e => {
+  document.querySelector('.main').addEventListener('wheel', e => {
     const sc = scroller();
     if (!(e.ctrlKey || e.metaKey)) {
       // przesuwanie dwoma palcami po gładziku: w edycji glifu przewijamy pole rysunku,
       // bo scena ma wtedy overflow:hidden i sama by się nie przewinęła
-      if (sc !== st && !e.target.closest('.edit-sample')) {
+      if (sc !== st && !e.target.closest('.preview')) {
         e.preventDefault(); sc.scrollLeft += e.deltaX; sc.scrollTop += e.deltaY;
       }
       return;
@@ -1638,6 +1709,131 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
 })();
 function fitText(){ const t = $('text'); t.style.height = 'auto'; t.style.height = Math.min(120, Math.max(36, t.scrollHeight)) + 'px'; }
 $('text').addEventListener('input', e => { state.text = e.target.value; fitText(); schedule(); autosave(); });
+// Pływający pasek steruje tymi samymi polami wyboru co wcześniej — logika
+// aplikacji została nietknięta, zmienił się tylko sposób klikania.
+const TB = [['tgG', 'showG'], ['tgC', 'showC'], ['tgO', 'showO']];
+$('tbAdd').addEventListener('click', openFileModal);
+// Chowanie panelu. Zapamiętujemy wybór, żeby nie wracał przy każdym wejściu.
+function setRail(open){
+  document.querySelector('.app').classList.toggle('rail-closed', !open);
+  $('railShow').hidden = open;
+  try { localStorage.setItem('type-type:rail', open ? '1' : '0'); } catch(e) {}
+  schedule();
+}
+$('railToggle').addEventListener('click', () => setRail(false));
+$('railShow').addEventListener('click', () => setRail(true));
+try { if (localStorage.getItem('type-type:rail') === '0') setRail(false); } catch(e) {}
+$('tbReset').addEventListener('click', () => { for (const k of ['end','out','in']) setParam(k, 0); });
+function setTool(t){
+  if (state.tool === t) return;
+  state.tool = t;
+  $('toolSeg').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.t === t));
+  applyCursor();
+  schedule();            // pióro dokłada pola trafień odcinków, więc trzeba przerysować
+}
+// Kursor i ikona pokazują, co zrobi kliknięcie: samo pióro dodaje,
+// pióro z minusem odejmuje.
+function applyCursor(alt){
+  const st = document.querySelector('.stage');
+  const wEd = state.mode === 'font' && state.view === 'edit';
+  const piorem = wEd && state.tool === 'pen';
+  const zazn = wEd && !piorem;
+  st.classList.toggle('tool-pen', piorem);
+  st.classList.toggle('tool-select', zazn);
+  if (alt !== undefined) st.classList.toggle('alt', !!alt && piorem);
+  const u = document.getElementById('penIcon');
+  if (u) u.setAttribute('href', (alt && piorem) ? '#ic-pen-minus' : '#ic-pen');
+}
+$('toolSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setTool(b.dataset.t); });
+document.addEventListener('keydown', (e) => { if (e.altKey) applyCursor(true); });
+document.addEventListener('keyup', (e) => { if (!e.altKey) applyCursor(false); });
+window.addEventListener('blur', () => applyCursor(false));
+$('tgT').addEventListener('click', () => {
+  state.showT = !state.showT;
+  $('tgT').setAttribute('aria-pressed', state.showT);
+  syncUI(); schedule();
+});
+const TYPY = [['auto','Auto'],['end','Zakończenie'],['out','Zewnętrzny'],['in','Wewnętrzny'],['off','Ostry']];
+// Drugi rząd paska. Pokazuje narzędzia pasujące do tego, co jest w tej chwili
+// zaznaczone — i znika, gdy nie ma czego robić.
+function renderCtxBar(){
+  const ctx = $('tbCtx');
+  if (!(state.mode === 'font' && state.view === 'edit')) { ctx.hidden = true; return; }
+  if (state.vmode === 'contour') {
+    const n = state.vsel.filter(s => s.part === 'node').length;
+    if (!n) { ctx.hidden = true; return; }
+    ctx.innerHTML = '<span class="tb-label"></span>';
+    ctx.firstChild.textContent = n === 1 ? '1 węzeł' : n + ' węzły';
+    for (const [id, ic, t] of [['cxSmooth','smooth','Wygładź'],['cxSharp','sharp','Wyprostuj'],['cxDel','del','Usuń węzeł']]) {
+      const b = document.createElement('button');
+      b.className = 'tb-btn'; b.id = id; b.title = t; b.setAttribute('aria-label', t);
+      b.innerHTML = '<svg class="ic"><use href="#ic-' + ic + '"/></svg>';
+      ctx.appendChild(b);
+    }
+    $('cxSmooth').onclick = () => vectorSmooth(true);
+    $('cxSharp').onclick = () => vectorSmooth(false);
+    $('cxDel').onclick = vectorDelete;
+    ctx.hidden = false; return;
+  }
+  const info = editInfo(), sel = selectedJoints(info).filter(j => j.c);
+  if (!sel.length) { ctx.hidden = true; return; }
+  const akt = sel[0].n ? sel[0].n.type : 'auto';
+  const maEnd = sel.every(j => j.c.endLen > 0);
+  ctx.innerHTML = '<span class="tb-label"></span>';
+  ctx.firstChild.textContent = sel.length === 1 ? '1 narożnik' : sel.length + ' narożniki';
+  for (const [v, label] of TYPY) {
+    if (v === 'end' && !maEnd) continue;
+    const b = document.createElement('button');
+    b.className = 'tb-chip t-' + v; b.setAttribute('aria-pressed', v === akt);
+    b.innerHTML = '<span class="dot"></span>';
+    b.appendChild(document.createTextNode(label));
+    b.onclick = () => setNodes((nn) => { nn.type = v; });
+    ctx.appendChild(b);
+  }
+  ctx.hidden = false;
+}
+// Belka zmienia szerokość, gdy dochodzą albo znikają narzędzia. Skok w szerokości
+// gubi wzrok, więc mierzymy rozmiar przed zmianą i po niej, i przechodzimy między
+// nimi płynnie. Belka jest wyśrodkowana, więc rośnie i maleje symetrycznie.
+const EASE = 'cubic-bezier(.2,.7,.3,1)';
+function animBar(fn){
+  const m = $('tbMain'), c = $('tbCtx');
+  const w0 = m.getBoundingClientRect().width;
+  const c0 = c.hidden ? null : c.getBoundingClientRect().width;
+  fn();
+  const w1 = m.getBoundingClientRect().width;
+  if (Math.abs(w1 - w0) > 1 && w0 > 0)
+    m.animate([{ width: w0 + 'px' }, { width: w1 + 'px' }], { duration: 180, easing: EASE });
+  if (!c.hidden) {
+    const c1 = c.getBoundingClientRect().width;
+    if (c0 == null) c.animate([{ opacity: 0, transform: 'translateY(8px) scale(.96)' }, { opacity: 1, transform: 'none' }],
+                              { duration: 160, easing: EASE });
+    else if (Math.abs(c1 - c0) > 1)
+      c.animate([{ width: c0 + 'px' }, { width: c1 + 'px' }], { duration: 180, easing: EASE });
+  }
+}
+function syncToolbar(){
+  animBar(() => {
+  renderCtxBar();
+  $('viewSeg').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x.dataset.v === state.view));
+  const wEdycji = state.mode === 'font' && state.view === 'edit';
+  $('vmodeSeg').hidden = !wEdycji; $('tbSepMode').hidden = !wEdycji;
+  $('toolSeg').hidden = !wEdycji;
+  if (!wEdycji) state.tool = 'select';
+  $('toolSeg').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.t === state.tool));
+  applyCursor();
+  $('viewSeg').hidden = state.mode !== 'font';
+  });
+  for (const [b, c] of TB) $(b).setAttribute('aria-pressed', $(c).checked);
+  $('tgT').setAttribute('aria-pressed', state.showT);
+  $('tgT').hidden = state.mode !== 'font';
+  $('tgG').hidden = !(state.mode === 'font' && state.view === 'edit');
+}
+for (const [b, c] of TB) $(b).addEventListener('click', () => {
+  const box = $(c); box.checked = !box.checked;
+  box.dispatchEvent(new Event('change', { bubbles: true }));
+  syncToolbar();
+});
 $('showC').addEventListener('change', e => {
   state.showC = e.target.checked;
   if (!state.showC) state.sel = [];          // nie zostawiamy zaznaczenia, którego nie widać
@@ -1648,6 +1844,7 @@ $('showO').addEventListener('change', e => { state.showO = e.target.checked; sch
 $('viewSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return;
   if (b.dataset.v === 'edit' && state.view !== 'edit' && !glyphCmds(editGlyph()).length) state.edit = firstGlyph();
   state.view = b.dataset.v; state.sel = []; syncUI(); updatePanel(); schedule(); });
+document.querySelector('.app').addEventListener('transitionend', (e) => { if (e.propertyName === 'grid-template-columns') schedule(); });
 window.addEventListener('resize', () => { if (state.view === 'glyphs' || state.view === 'edit' || state.mode === 'svg') schedule(); });
 
 const fileModal = $('fileModal');
@@ -1657,7 +1854,6 @@ function openFileModal(){
   setTimeout(() => $('drop').focus(), 0);
 }
 function closeFileModal(){ fileModal.hidden = true; }
-$('openFile').addEventListener('click', openFileModal);
 $('fileModalClose').addEventListener('click', closeFileModal);
 $('fileModalBg').addEventListener('click', closeFileModal);
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !fileModal.hidden) { e.stopPropagation(); closeFileModal(); } }, true);
@@ -1695,7 +1891,6 @@ $('expFont').addEventListener('click', exportFont);
 $('expVF').addEventListener('click', exportVF);
 
 // panel korekt
-$('npType').addEventListener('click', e => { const b = e.target.closest('button'); if (!b || b.disabled) return; setNodes(n => { n.type = b.dataset.v; }); });
 $('npAbsorb').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; setNodes(n => { n.absorb = b.dataset.v; }); });
 $('npMode').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
@@ -1711,12 +1906,6 @@ $('npMode').addEventListener('click', e => {
 const setAmt = (v) => { v = Math.max(0, Math.min(200, +v)); if (!isFinite(v)) return; setNodes(n => { n.amt = v; }); };
 $('s-namt').addEventListener('input', e => setAmt(e.target.value));
 $('n-namt').addEventListener('input', e => { if (e.target.value !== '') setAmt(e.target.value); });
-const setGScale = (v) => {
-  v = Math.max(0, Math.min(200, +v)); if (!isFinite(v)) return;
-  const key = 'g' + state.edit; checkpoint(); entry(key).scale = v; cleanOvr(key); updatePanel(); schedule(); autosave();
-};
-$('s-gscale').addEventListener('input', e => setGScale(e.target.value));
-$('n-gscale').addEventListener('input', e => { if (e.target.value !== '') setGScale(e.target.value); });
 $('npForce').addEventListener('click', () => {
   const info = editInfo(), sel = selectedJoints(info); checkpoint(); const E = entry(info.key);
   if ($('npForce').dataset.act === 'add') {
@@ -1745,6 +1934,11 @@ $('baseChar').addEventListener('input', e => {
   const i = state.font.charToGlyphIndex(ch);
   if (i > 0) { e.target.value = ch; setBase(i); } else toast('Tego znaku nie ma w foncie');
 });
+$('baseBtn').addEventListener('click', toggleBase);
+document.addEventListener('pointerdown', (e) => {
+  if ($('basePop').hidden) return;
+  if (!e.target.closest('#basePop') && !e.target.closest('#baseBtn')) closeBasePop();
+}, true);
 $('baseSuggest').addEventListener('click', e => setBase(+e.currentTarget.dataset.i));
 $('baseApply').addEventListener('click', () => {
   if (state.sel.length !== 1) return;
@@ -1844,7 +2038,7 @@ $('baseCopy').addEventListener('click', copyNode);
 $('basePaste').addEventListener('click', pasteNode);
 $('basePastePos').addEventListener('click', pasteGeom);
 $('clipClear').addEventListener('click', () => { state.clip = null; updatePanel(); });
-$('baseClear').addEventListener('click', () => setBase(null));
+$('baseClear').addEventListener('click', () => { setBase(null); closeBasePop(); });   // wraca do litery z rozkładu
 $('gPrev').addEventListener('click', () => stepGlyph(-1));
 $('gNext').addEventListener('click', () => stepGlyph(1));
 $('gChar').addEventListener('input', e => {
@@ -1857,10 +2051,37 @@ $('sheet').addEventListener('dblclick', e => {
   const t = e.target.closest('[data-vs]'); if (!t) return;
   const [ci, si] = t.dataset.vs.split(',').map(Number), p = toFont(e); if (p) vectorInsert(ci, si, p);
 });
+$('preview').addEventListener('click', e => {
+  if (state.mode !== 'font') return;
+  const sg = e.target.closest('.preview-art [data-gi]');
+  if (sg) {
+    const i = +sg.dataset.gi;
+    if (state.view === 'edit') { if (i !== state.edit) setEdit(i); } else enterEdit(i);
+    return;
+  }
+  // klik obok liter: tekst zamienia się w pole i edytujesz go na miejscu
+  if (state.view !== 'edit' && !e.target.closest('#text')) startTextEdit();
+});
+function startTextEdit(){
+  const t = $('text');
+  $('preview').classList.add('editing');
+  t.hidden = false;
+  t.value = state.text;
+  t.focus(); t.select();
+}
+function endTextEdit(){
+  const t = $('text');
+  if (t.hidden) return;
+  t.hidden = true; $('preview').classList.remove('editing');
+  schedule();
+}
+$('text').addEventListener('blur', endTextEdit);
+$('text').addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { e.preventDefault(); $('text').value = state.text; endTextEdit(); }
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); endTextEdit(); }
+});
 $('sheet').addEventListener('click', e => {
   if (document.querySelector('.stage').dataset.dragged) return;
-  const sg = e.target.closest('.edit-sample [data-gi]');
-  if (sg && state.mode === 'font' && state.view === 'edit') { const i = +sg.dataset.gi; if (i !== state.edit) setEdit(i); return; }
   const t = e.target.closest('[data-gi]'); if (t && state.mode === 'font' && state.view !== 'edit') enterEdit(+t.dataset.gi);
 });
 document.addEventListener('keyup', e => { if (e.key === ' ') { state.spacePan = false; document.querySelector('.stage').classList.remove('space'); } });
@@ -1880,6 +2101,9 @@ document.addEventListener('keydown', e => {
   if (state.mode !== 'font' || state.view !== 'edit' || typing) return;
   if (e.key === ' ' && !e.repeat) { e.preventDefault(); state.spacePan = true; document.querySelector('.stage').classList.add('space'); return; }
   if (e.key === ' ') { e.preventDefault(); return; }
+  if (!mod && (k === 'v' || k === 'p')) {
+    e.preventDefault(); setTool(k === 'v' ? 'select' : 'pen'); return;
+  }
   if (!mod && (e.key === '+' || e.key === '=')) { e.preventDefault(); zoomTo(curZoom() * 1.25); return; }
   if (!mod && (e.key === '-' || e.key === '_')) { e.preventDefault(); zoomTo(curZoom() / 1.25); return; }
   if (!mod && e.key === '0') { e.preventDefault(); zoomTo(100); return; }
@@ -1931,6 +2155,7 @@ const BOOT_LINES = ['Wczytywanie', 'glifów…'];
 const BOOT_MS = 3000;        // ekran startowy trwa co najmniej tyle
 const MORPH_MS = 1150;       // z czego tyle zajmuje zaokrąglanie napisu
 function bootMsg(){
+  document.querySelector('.app').classList.add('booting');   // nic nie klikalne, póki się ładuje
   const sh = $('sheet');
   sh.classList.add('boot-screen');           // plansza na całą szerokość, inaczej napis się nie mieści
   sh.innerHTML = `<div class="boot"><span>${BOOT_LINES[0]}</span><span>${BOOT_LINES[1]}</span></div>`;
@@ -1982,12 +2207,14 @@ async function boot(){
   bootMsg();
   $('note').textContent = '';
   if (!(await loadBootFont())) {
+    document.querySelector('.app').classList.remove('booting');
     state.booting = false;
     loadDemo();                              // font niedostępny (np. otwarcie przez file://)
     return;
   }
   // ostatnia linia obrony: cokolwiek by się stało z animacją, aplikacja ma wstać
   await Promise.race([bootMorph(t0), new Promise((r) => setTimeout(r, BOOT_MS + MORPH_MS + 2000))]);
+  document.querySelector('.app').classList.remove('booting');
   state.booting = false;
   state.view = 'glyphs';                     // start na siatce wszystkich glifów
   syncUI(); render();

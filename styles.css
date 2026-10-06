@@ -255,3 +255,144 @@ details[open] summary{margin-bottom:14px}
 
 .picked{margin:0 0 10px; font-size:13px; color:var(--muted)}
 .picked b{color:var(--ink); font-weight:600}
+
+/* --- odchudzony panel: gęstsze odstępy, drobniejsze kontrolki --- */
+.rail{padding:18px 18px 32px}
+section{padding:14px 0}
+section h2{margin:0 0 10px; font-size:12px; letter-spacing:.01em}
+.hint{font-size:12px; margin:5px 0 0}
+.ctrl{margin-bottom:12px}
+.ctrl-head label{font-size:12.5px}
+.np-row{margin-bottom:10px}
+.np-h3{margin:14px 0 7px; padding-top:12px; font-size:12px}
+.seg.small button{padding:5px 8px; font-size:12px}
+.seg.icons button{padding:5px 9px; display:inline-flex; align-items:center}
+.seg.icons svg{width:17px; height:17px; display:block}
+.iconbtn.lg{width:34px; height:34px; border:1px solid var(--line); border-radius:9px; background:var(--sheet)}
+.iconbtn.lg svg{width:17px; height:17px; display:block; margin:auto}
+.iconbtn.lg:hover{border-color:var(--ink)}
+.iconbtn.lg:disabled{opacity:.4; cursor:default}
+.lbl[title], label[title], .hint[title]{cursor:help; text-decoration:underline dotted var(--line); text-underline-offset:3px}
+
+/* --- pływający pasek narzędzi nad kadrem --- */
+.main{position:relative}
+.ic{width:17px; height:17px; display:block}
+.toolbar{pointer-events:none; position:absolute; left:50%; transform:translateX(-50%); z-index:20;
+  bottom:calc(var(--previewH, 0px) + 54px);
+  display:flex; flex-direction:column; align-items:center; gap:8px;
+  background:transparent; border:0; padding:0; box-shadow:none}
+.tb-main, .tb-ctx{pointer-events:auto; display:flex; align-items:center; gap:8px; padding:6px; overflow:hidden; white-space:nowrap;
+  background:var(--sheet); border:1px solid var(--line); border-radius:12px;
+  box-shadow:0 8px 26px rgba(0,0,0,.14)}
+.tb-ctx{gap:6px; overflow:hidden; white-space:nowrap}
+.tb-ctx .tb-label{font-family:var(--mono); font-size:11.5px; color:var(--muted); padding:0 4px}
+.tb-chip{height:28px; display:flex; align-items:center; gap:6px; padding:0 9px; border:1px solid var(--line);
+  border-radius:8px; background:var(--sheet); font-size:12px; color:var(--ink); cursor:pointer}
+.tb-chip:hover{border-color:var(--ink)}
+.tb-chip[aria-pressed=true]{background:var(--ink); color:var(--sheet); border-color:var(--ink)}
+.tb-chip .dot{width:8px; height:8px; border-radius:50%; flex:none}
+.tb-chip.t-end .dot{background:var(--end)} .tb-chip.t-out .dot{background:var(--out)}
+.tb-chip.t-in .dot{background:var(--in)} .tb-chip.t-off .dot{background:var(--faint)}
+.tb-chip.t-auto .dot{background:transparent; border:1.5px solid var(--faint)}
+/* skala w prawym dolnym rogu, dyskretnie */
+/* prawy dolny róg: wyzerowanie i skala, dyskretnie, poza główną belką */
+.corner{position:absolute; right:14px; bottom:calc(var(--previewH, 0px) + 52px); z-index:19;
+  display:flex; align-items:center; gap:6px}
+.corner .tb-btn{color:var(--faint); background:color-mix(in srgb, var(--sheet) 85%, transparent)}
+.corner .tb-btn:hover{color:var(--ink); background:var(--field)}
+.scale-corner{display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:11px; color:var(--faint);
+  background:color-mix(in srgb, var(--sheet) 85%, transparent); padding:4px 8px; border-radius:8px}
+.scale-corner input[type=range]{width:72px}
+.scale-corner:hover{color:var(--muted)}
+.tb-group, .tb-sep, .tb-size{pointer-events:auto}
+.tb-group{display:flex; align-items:center; gap:2px}
+.tb-sep{width:1px; align-self:stretch; background:var(--line); margin:2px 2px}
+.tb-btn{width:30px; height:30px; display:grid; place-items:center; border:0; border-radius:8px;
+  background:transparent; color:var(--muted); cursor:pointer}
+.tb-btn:hover{background:var(--field); color:var(--ink)}
+.tb-btn[aria-pressed=true]{background:var(--ink); color:var(--sheet)}
+.toolbar .seg{background:transparent; padding:0; gap:2px}
+.toolbar .seg button{width:30px; height:30px; padding:0; display:grid; place-items:center; border-radius:8px; color:var(--muted)}
+.toolbar .seg button[aria-pressed=true]{background:var(--ink); color:var(--sheet); box-shadow:none}
+.tb-size{display:flex; align-items:center; gap:7px; font-family:var(--mono); font-size:11.5px; color:var(--muted); padding-right:4px}
+.tb-size input[type=range]{width:86px}
+@media (max-width: 860px){ .toolbar{bottom:calc(var(--sampleH, 0px) + 12px)} }
+
+/* sekcje zwijane: Eksport i Plik — robi się je raz, nie muszą zajmować miejsca */
+.fold > summary{list-style:none; cursor:pointer; font-size:12px; font-weight:600; color:var(--ink);
+  display:flex; align-items:center; justify-content:space-between; padding:2px 0}
+.fold > summary::-webkit-details-marker{display:none}
+.fold > summary::after{content:'+'; color:var(--muted); font-family:var(--mono)}
+.fold[open] > summary::after{content:'−'}
+.fold > summary + *{margin-top:10px}
+/* pusty stan panelu właściwości */
+.empty-note{color:var(--muted); font-size:12.5px; margin:4px 0 0}
+
+/* okienko przy przycisku w górnej belce */
+.pop-wrap{position:relative}
+.pop{position:absolute; top:calc(100% + 6px); left:0; z-index:40; min-width:180px;
+  background:var(--sheet); border:1px solid var(--line); border-radius:10px; padding:10px;
+  box-shadow:0 10px 30px rgba(0,0,0,.16)}
+.pop-row{display:flex; align-items:center; justify-content:space-between; gap:10px;
+  font-size:12.5px; color:var(--muted); margin-bottom:8px}
+.pop-row input{width:56px; text-align:center; padding:6px; border:0; border-radius:8px; background:var(--field); font-size:15px}
+#baseBtn[aria-expanded=true]{border-color:var(--ink)}
+
+/* pasek z podglądem tekstu pod kadrem */
+.preview{flex:none; display:flex; align-items:center; padding:8px 16px;
+  border-top:1px solid var(--line); background:var(--sheet); overflow:hidden}
+/* Podczas pisania pasek staje się dwuwierszowy: u góry linia do wpisywania,
+   pod nią żywy podgląd przeliczany z każdym znakiem. Pole nie ma ramki ani tła,
+   więc czyta się jak tekst, a nie jak okienko. */
+.preview.editing{flex-direction:column; align-items:stretch; gap:6px}
+.preview .textin{flex:none; width:100%; height:auto; min-height:0; resize:none; padding:0; margin:0;
+  border:0; background:transparent; font-family:var(--mono); font-size:12.5px; color:var(--muted);
+  line-height:1.3; caret-color:var(--focus)}
+.preview .textin:focus{outline:none}
+.preview-art{cursor:text}
+.preview-art{flex:1; min-width:0; overflow:hidden}
+.preview-art svg{display:block; max-width:100%; height:auto}
+.preview-art .hl{fill:var(--end)}
+.preview-art [data-gi]{cursor:pointer}
+.preview-art [data-gi]:not(.hl):hover{fill:var(--muted)}
+
+/* chowany panel */
+.app{transition:grid-template-columns .16s ease}
+.app.rail-closed{grid-template-columns:0 1fr}
+.app.rail-closed .rail{overflow:hidden; padding-left:0; padding-right:0; border-right:0}
+.brand{align-items:center}
+.brand h1{flex:1}
+#railToggle{color:var(--muted)}
+.rail-show{position:fixed; left:12px; top:13px; z-index:30; width:30px; height:30px; display:grid; place-items:center;
+  border:1px solid var(--line); border-radius:8px; background:var(--sheet); color:var(--muted); cursor:pointer;
+  box-shadow:0 4px 14px rgba(0,0,0,.1)}
+.app.rail-closed .bar{padding-left:54px}
+.rail-show:hover{color:var(--ink); border-color:var(--ink)}
+/* rząd przełączników podglądu w panelu */
+.view-row{padding:0 0 14px; border-bottom:1px solid var(--line); margin-bottom:4px}
+.view-row-lbl{display:block; margin-bottom:7px; font-family:var(--mono); font-size:11px; color:var(--faint)}
+.view-row-btns{display:flex; gap:8px}
+/* Ikona z podpisem: sama ikona nie mówi, co przełącza, więc etykieta jest
+   zawsze widoczna, nie tylko w tooltipie. */
+.iconlbl{display:flex; flex-direction:column; align-items:center; gap:4px; min-width:54px}
+.iconlbl em{font-style:normal; font-family:var(--mono); font-size:10px; line-height:1.1; color:var(--faint); text-align:center}
+.iconlbl .tb-btn[aria-pressed="true"] + em{color:var(--ink)}
+/* Gdy app chowa sam przycisk (np. siatka poza trybem edycji), znika z nim podpis. */
+.iconlbl:has(> .tb-btn[hidden]){display:none}
+
+.tb-btn.wide{width:auto; gap:6px; padding:0 10px; display:flex; font-size:12.5px; color:var(--ink)}
+.tb-btn.wide svg{flex:none}
+
+/* Kursory narzędzi. Oba mają czubek w tym samym punkcie (3,3), więc zmiana
+   narzędzia nie przesuwa miejsca, w które celujesz. */
+.stage.tool-select, .stage.tool-select .v-seg, .stage.tool-select .v-hit, .stage.tool-select .m-hit{cursor:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20d%3D%22M3%203%203%2018.6%207.1%2014.5%209.6%2020.2%2012.4%2019%209.9%2013.4%2015.6%2013.4Z%22%20fill%3D%22%2523fff%22%20stroke%3D%22%2523111%22%20stroke-width%3D%221.5%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E") 3 3, default}
+.stage.tool-pen, .stage.tool-pen .v-seg, .stage.tool-pen .v-hit, .stage.tool-pen .m-hit{cursor:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20d%3D%22M3%203%208.3%204.9%2019.9%2016.5a1.9%201.9%200%200%201-2.7%202.7L5.6%207.6Z%22%20fill%3D%22%2523fff%22%20stroke%3D%22%2523111%22%20stroke-width%3D%221.5%22%20stroke-linejoin%3D%22round%22%2F%3E%3Cpath%20d%3D%22M6.6%206.6%208.9%204.3%22%20stroke%3D%22%2523111%22%20stroke-width%3D%221.3%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E") 3 3, default}
+.stage.tool-pen.alt, .stage.tool-pen.alt .v-seg, .stage.tool-pen.alt .v-hit{cursor:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20d%3D%22M3%203%208.3%204.9%2019.9%2016.5a1.9%201.9%200%200%201-2.7%202.7L5.6%207.6Z%22%20fill%3D%22%2523fff%22%20stroke%3D%22%2523111%22%20stroke-width%3D%221.5%22%20stroke-linejoin%3D%22round%22%2F%3E%3Cpath%20d%3D%22M6.6%206.6%208.9%204.3%22%20stroke%3D%22%2523111%22%20stroke-width%3D%221.3%22%20stroke-linecap%3D%22round%22%2F%3E%3Ccircle%20cx%3D%2218%22%20cy%3D%226%22%20r%3D%224.4%22%20fill%3D%22%2523fff%22%20stroke%3D%22%2523111%22%20stroke-width%3D%221.4%22%2F%3E%3Cpath%20d%3D%22M15.8%206h4.4%22%20stroke%3D%22%2523111%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E") 3 3, default}
+
+/* Ekran ładowania: interfejs jest przygaszony i nieklikalny, dopóki font
+   się nie wczyta. Sam napis zostaje w pełnym kontraście. */
+.app.booting .rail, .app.booting .bar, .app.booting .toolbar,
+.app.booting .preview, .app.booting .corner, .app.booting .rail-show{
+  opacity:.35; pointer-events:none; user-select:none}
+.app.booting .stage{pointer-events:none}
+.app.booting .boot{opacity:1}

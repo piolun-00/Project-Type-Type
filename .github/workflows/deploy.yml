@@ -52,6 +52,9 @@ jobs:
         run: |
           mkdir _site
           cp -r index.html zasady.html styles.css src vendor fonts THIRD_PARTY_NOTICES.txt _site/
+          # Znacznik wersji przy plikach: przeglądarka nie poda starego arkusza ani skryptu
+          # po publikacji nowej wersji. Bez tego trzeba było odświeżać na twardo.
+          sed -i "s/?v=DEV/?v=${GITHUB_SHA:0:8}/g" _site/index.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

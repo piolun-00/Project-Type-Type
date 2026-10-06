@@ -6,40 +6,64 @@
 <title>Type Type — zaokrąglanie narożników fontów i SVG</title>
 <meta name="description" content="Narzędzie do zaokrąglania narożników fontów i plików SVG. Działa w całości w przeglądarce — pliki nie są nigdzie wysyłane.">
 <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M12 12h76v48a28 28 0 0 1-28 28H12z" fill="%232d5be3"/></svg>'>
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=DEV">
 
 </head>
 <body>
+<!-- ===================================================================
+     IKONY — wszystkie w jednym miejscu. Żeby podmienić ikonę, zmień tylko
+     zawartość odpowiedniego <symbol>. Rysunek ma mieścić się w 16×16.
+     Używaj currentColor, wtedy ikona bierze kolor z przycisku.
+     =================================================================== -->
+<svg class="sprite" aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden">
+  <symbol id="ic-a-fill" viewBox="0 0 16 16"><path fill="currentColor" fill-rule="evenodd" d="M8.55 1.9 12.6 12.55h1.75v1.05h-4.7v-1.05h1.15l-.92-2.5H6.05l-.86 2.5h1.2v1.05H2.9v-1.05h1.5L8.55 1.9ZM6.45 8.85h3.1L8.1 4.6 6.45 8.85Z"/></symbol>
+  <symbol id="ic-a-line" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width=".9" stroke-linejoin="round" d="M8.55 1.9 12.6 12.55h1.75v1.05h-4.7v-1.05h1.15l-.92-2.5H6.05l-.86 2.5h1.2v1.05H2.9v-1.05h1.5L8.55 1.9Z"/><path fill="none" stroke="currentColor" stroke-width=".9" stroke-linejoin="round" d="M6.45 8.85h3.1L8.1 4.6 6.45 8.85Z"/></symbol>
+  <symbol id="ic-grid" viewBox="0 0 16 16"><path d="M1.8 6.1h12.4M1.8 9.9h12.4M6.1 1.8v12.4M9.9 1.8v12.4" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></symbol>
+  <symbol id="ic-marks" viewBox="0 0 16 16"><path d="M3 12.6V6.4A3.4 3.4 0 0 1 6.4 3h6.2" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><circle cx="3" cy="12.6" r="1.9" fill="currentColor"/><circle cx="12.6" cy="3" r="1.9" fill="currentColor"/></symbol>
+  <symbol id="ic-orig" viewBox="0 0 16 16"><rect x="5.4" y="5.4" width="8.2" height="8.2" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M2.4 10.6v-7a1.2 1.2 0 0 1 1.2-1.2h7" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="2.2 1.8"/></symbol>
+  <symbol id="ic-smooth" viewBox="0 0 16 16"><path d="M1.5 12.5c3.5 0 3-9 13-9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="6.6" cy="7.2" r="2.2" fill="currentColor"/></symbol>
+  <symbol id="ic-sharp" viewBox="0 0 16 16"><path d="M1.5 13.5 7.5 3l7 10.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/><rect x="5.5" y="1" width="4" height="4" rx=".5" fill="currentColor"/></symbol>
+  <symbol id="ic-arrow" viewBox="0 0 16 16"><path d="M3.2 2.2 3.2 12.6 5.9 9.9 7.7 13.8 9.6 12.9 7.8 9.1 11.8 9.1Z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></symbol>
+  <symbol id="ic-pen" viewBox="0 0 16 16"><path d="M2.6 13.4 3.9 9.8l6.5-6.5a1.7 1.7 0 0 1 2.4 2.4l-6.5 6.5-3.7 1.2Z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M9.3 4.4l2.3 2.3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></symbol>
+  <symbol id="ic-pen-minus" viewBox="0 0 16 16"><path d="M1.9 12.7 3 9.6l5.6-5.6a1.5 1.5 0 0 1 2.1 2.1L5.1 11.7l-3.2 1Z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M9.4 12.6h4.7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+  <symbol id="ic-panel" viewBox="0 0 16 16"><rect x="1.8" y="2.6" width="12.4" height="10.8" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6.4 2.6v10.8" fill="none" stroke="currentColor" stroke-width="1.3"/></symbol>
+  <symbol id="ic-plus" viewBox="0 0 16 16"><path d="M8 3.2v9.6M3.2 8h9.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+  <symbol id="ic-reset" viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.6-3.7" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M13.2 1.9v3.1h-3.1" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="ic-glyphs" viewBox="0 0 16 16"><rect x="2" y="2" width="5" height="5" rx="1" fill="currentColor"/><rect x="9" y="2" width="5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="2" y="9" width="5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="9" width="5" height="5" rx="1" fill="currentColor"/></symbol>
+  <symbol id="ic-text" viewBox="0 0 16 16"><path d="M2.6 3.2h10.8M8 3.6v9.2M5.9 12.9h4.2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+  <symbol id="ic-del" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.4 8h5.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+</svg>
 <div class="app">
   <aside class="rail">
-    <div class="brand"><h1>Type Type</h1><span>v0.13</span></div>
+    <div class="brand">
+      <h1>Type Type</h1>
+      <button class="tb-btn" id="railToggle" title="Schowaj panel" aria-label="Schowaj panel"><svg class="ic"><use href="#ic-panel"/></svg></button>
+    </div>
+    <div class="view-row">
+      <span class="view-row-lbl">Podgląd</span>
+      <div class="view-row-btns">
+        <span class="iconlbl"><button class="tb-btn" id="tgG" aria-pressed="true" title="Siatka pomocnicza i linie metryczne" aria-label="Siatka"><svg class="ic"><use href="#ic-grid"/></svg></button><em>Siatka</em></span>
+        <span class="iconlbl"><button class="tb-btn" id="tgC" aria-pressed="true" title="Kolorowe znaczniki wykrytych narożników" aria-label="Znaczniki narożników"><svg class="ic"><use href="#ic-marks"/></svg></button><em>Narożniki</em></span>
+        <span class="iconlbl"><button class="tb-btn" id="tgO" aria-pressed="false" title="Oryginalny kształt pod spodem" aria-label="Oryginał pod spodem"><svg class="ic"><use href="#ic-orig"/></svg></button><em>Oryginał</em></span>
+      </div>
+    </div>
     <section id="nodePanel" hidden>
       <h2 id="npTitle">Glif</h2>
       <div id="vPanel" hidden>
-        <p class="hint" id="vHint" style="margin-top:0"></p>
         <div id="vCoords" class="np-row" hidden>
           <span class="lbl">Położenie węzła (jednostki fontu)</span>
           <div class="btn-row"><label class="toggle" style="color:var(--ink)">X <input class="num" id="vX" type="number" step="1"></label>
           <label class="toggle" style="color:var(--ink)">Y <input class="num" id="vY" type="number" step="1"></label></div>
         </div>
         <div class="btn-row" id="vBtns" style="margin-bottom:12px" hidden>
-          <button class="btn" id="vSmooth">Wygładź</button>
-          <button class="btn" id="vSharp">Wyprostuj</button>
-          <button class="btn" id="vDel">Usuń węzeł</button>
+          <button class="iconbtn lg" id="vSmooth" title="Wygładź węzeł" aria-label="Wygładź węzeł"><svg class="ic" aria-hidden="true"><use href="#ic-smooth"/></svg></button>
+          <button class="iconbtn lg" id="vSharp" title="Wyprostuj węzeł" aria-label="Wyprostuj węzeł"><svg class="ic" aria-hidden="true"><use href="#ic-sharp"/></svg></button>
+          <button class="iconbtn lg" id="vDel" title="Usuń węzeł (Backspace)" aria-label="Usuń węzeł"><svg class="ic" aria-hidden="true"><use href="#ic-del"/></svg></button>
         </div>
         <button class="linkbtn" id="vReset">Przywróć oryginalny kontur</button>
       </div>
       <div id="cPanel">
-      <div class="ctrl small" style="--c:var(--ink)">
-        <div class="ctrl-head"><label for="s-gscale">Cały glif (% ustawień globalnych)</label><input class="num" id="n-gscale" type="number" min="0" max="200" step="1"></div>
-        <input type="range" id="s-gscale" min="0" max="200" step="1">
-      </div>
-      <p class="hint" id="npHint"></p>
       <div id="npCtrls" hidden>
-        <div class="np-row"><span class="lbl">Typ narożnika</span>
-          <div class="seg wrap small" id="npType" role="group" aria-label="Typ narożnika">
-            <button data-v="auto">Auto</button><button data-v="end">Zakończenie</button><button data-v="out">Zewnętrzny</button><button data-v="in">Wewnętrzny</button><button data-v="off">Ostry</button>
-          </div></div>
         <div class="np-row"><span class="lbl">Siła</span>
           <div class="seg small" id="npMode" role="group" aria-label="Rodzaj siły">
             <button data-v="rel">Względna</button><button data-v="abs">Zamrożona</button>
@@ -48,7 +72,7 @@
           <div class="ctrl-head"><label for="s-namt" id="npAmtLabel">% suwaka globalnego</label><input class="num" id="n-namt" type="number" min="0" max="200" step="1"></div>
           <input type="range" id="s-namt" min="0" max="200" step="1">
         </div>
-        <div class="np-row"><span class="lbl">Wtapianie kikutów przy tym narożniku</span>
+        <div class="np-row"><span class="lbl" title="Wymuś albo zablokuj wtapianie krótkiego odcinka przy tym narożniku">Wtapianie</span>
           <div class="seg small" id="npAbsorb" role="group" aria-label="Wtapianie">
             <button data-v="auto">Auto</button><button data-v="on">Wymuś</button><button data-v="off">Blokuj</button>
           </div></div>
@@ -62,12 +86,6 @@
       </div>
       <div id="baseWrap" hidden>
         <h3 class="np-h3">Baza glifu</h3>
-        <p class="hint" id="baseHint" style="margin-top:0">Wskaż glif, z którego czerpiesz. Dla znaków z akcentem podpowiadam literę bazową. Kopiowanie i wklejanie działa też przez Cmd/Ctrl + C oraz Cmd/Ctrl + V.</p>
-        <div class="base-pick">
-          <input id="baseChar" type="text" maxlength="4" spellcheck="false" placeholder="znak" aria-label="Glif bazowy">
-          <button class="btn" id="baseSuggest" hidden></button>
-          <button class="linkbtn" id="baseClear" hidden>Wyczyść</button>
-        </div>
         <div class="msg" id="baseMsg"></div>
         <div id="baseNodeWrap" hidden>
           <span class="lbl" style="display:block; font-size:12.5px; color:var(--muted); margin:10px 0 6px" id="baseNodeLbl">Zaznaczony węzeł</span>
@@ -91,14 +109,6 @@
 
 
     <section>
-      <h2>Plik</h2>
-      <div class="file-info" id="fileInfo">Teraz: <b>kształty demo</b></div>
-      <div class="msg" id="msg"></div>
-      <div class="restore" id="restore" hidden></div>
-      <p class="hint">Pliki zostają w twojej przeglądarce — nic nie jest wysyłane. <a href="zasady.html" style="color:inherit">Zasady korzystania</a></p>
-    </section>
-
-    <section>
       <h2>Zaokrąglenie</h2>
       <div class="ctrl" style="--c:var(--end)">
         <div class="ctrl-head"><label for="s-end"><span class="dot"></span>Zakończenia</label><input class="num" id="n-end" type="number" min="0" max="100" step="1" aria-label="Zakończenia, wartość"></div>
@@ -114,29 +124,25 @@
       </div>
       <button class="linkbtn" id="reset">Wyzeruj</button>
     </section>
-
     <section>
       <details id="adv">
         <summary>Precyzja</summary>
-        <label class="toggle" style="margin-bottom:14px; color:var(--ink)"><input type="checkbox" id="union" checked> Łącz nachodzące kontury</label>
-        <p class="hint" style="margin:-8px 0 14px">Scala ogonki ą, ę i kreskę Ł z literą, żeby miejsca styku też się zaokrąglały.</p>
+        <label class="toggle" style="margin-bottom:12px; color:var(--ink)" title="Scala ogonki ą, ę i kreskę Ł z literą, żeby miejsca styku też się zaokrąglały."><input type="checkbox" id="union" checked> Łącz nachodzące kontury</label>
         <div class="ctrl small" style="--c:var(--ink)">
-          <div class="ctrl-head"><label for="s-merge">Scalanie bliskich punktów (% em)</label><input class="num" id="n-merge" type="number" min="0" max="4" step="0.1"></div>
+          <div class="ctrl-head"><label for="s-merge" title="Odcinki krótsze niż ten próg traktuję jak jeden narożnik — radzi sobie z podwójnymi wektorami i szumem.">Scalanie punktów (% em)</label><input class="num" id="n-merge" type="number" min="0" max="4" step="0.1"></div>
           <input type="range" id="s-merge" min="0" max="4" step="0.1">
         </div>
-        <p class="hint" style="margin:-6px 0 14px">Odcinki krótsze niż ten próg traktuję jak jeden narożnik (podwójne wektory, szum).</p>
         <div class="ctrl small" style="--c:var(--ink)">
-          <div class="ctrl-head"><label for="s-absorb">Wtapianie krótkich kikutów (% em)</label><input class="num" id="n-absorb" type="number" min="0" max="40" step="0.5"></div>
+          <div class="ctrl-head"><label for="s-absorb" title="Gdy między dwoma łukami jest odcinek krótszy niż ten próg i łuki się nie mieszczą, prowadzę przez niego jedną płynną krzywą zamiast ściskać oba. 0 wyłącza.">Wtapianie kikutów (% em)</label><input class="num" id="n-absorb" type="number" min="0" max="40" step="0.5"></div>
           <input type="range" id="s-absorb" min="0" max="40" step="0.5">
         </div>
-        <p class="hint" style="margin:-6px 0 14px">Jeśli między dwoma łukami jest odcinek krótszy niż ten próg i łuki się nie mieszczą, prowadzę przez niego jedną płynną krzywą zamiast ściskać oba łuki. 0 wyłącza.</p>
         <div class="stroke-row"><span>Grubość kreski (wykryta: <b id="strokeAuto">–</b>)</span><input class="num" id="strokeOv" type="number" min="1" step="1" placeholder="auto" aria-label="Ręczna grubość kreski"></div>
         <div class="ctrl small" style="--c:var(--out)">
-          <div class="ctrl-head"><label for="s-kOut">Promień zewnętrzny × kreska</label><input class="num" id="n-kOut" type="number" min="0.1" max="3" step="0.05"></div>
+          <div class="ctrl-head"><label for="s-kOut" title="Promienie liczone są względem grubości kreski, więc te same ustawienia działają na różnych krojach i gramaturach.">Promień zewn. × kreska</label><input class="num" id="n-kOut" type="number" min="0.1" max="3" step="0.05"></div>
           <input type="range" id="s-kOut" min="0.1" max="3" step="0.05">
         </div>
         <div class="ctrl small" style="--c:var(--in)">
-          <div class="ctrl-head"><label for="s-kIn">Promień wewnętrzny × kreska</label><input class="num" id="n-kIn" type="number" min="0.1" max="3" step="0.05"></div>
+          <div class="ctrl-head"><label for="s-kIn" title="Promienie liczone są względem grubości kreski.">Promień wewn. × kreska</label><input class="num" id="n-kIn" type="number" min="0.1" max="3" step="0.05"></div>
           <input type="range" id="s-kIn" min="0.1" max="3" step="0.05">
         </div>
         <div class="ctrl small" style="--c:var(--ink)">
@@ -156,15 +162,15 @@
           <input type="range" id="s-endTol" min="0" max="45" step="1">
         </div>
         <div class="ctrl small" style="--c:var(--end)">
-          <div class="ctrl-head"><label for="s-endMax">Maks. szerokość zakończenia (% em)</label><input class="num" id="n-endMax" type="number" min="2" max="80" step="1"></div>
+          <div class="ctrl-head"><label for="s-endMax" title="Powyżej tej szerokości odcinek nie jest już uznawany za zakończenie kreski">Maks. zakończenie (% em)</label><input class="num" id="n-endMax" type="number" min="2" max="80" step="1"></div>
           <input type="range" id="s-endMax" min="2" max="80" step="1">
         </div>
-        <p class="hint">Promienie liczone są względem grubości kreski, więc te same ustawienia działają na różnych krojach i gramaturach.</p>
       </details>
     </section>
-
     <section>
-      <h2>Eksport</h2>
+      <details class="fold">
+        <summary>Eksport</summary>
+
       <div id="fontExport" hidden>
         <input class="field" id="famName" type="text" aria-label="Nazwa rodziny nowego fontu" placeholder="Nazwa rodziny">
         <div class="btn-row" style="margin-bottom:8px">
@@ -172,7 +178,7 @@
           <button class="btn" id="expVF" hidden>Pobierz font zmienny (.ttf)</button>
         </div>
         <p class="hint" id="expLocked" hidden style="margin-bottom:12px">Podgląd startuje na ABC Areal, żeby było na czym pracować — ale tego fontu nie da się stąd pobrać. Wgraj własny plik, a eksport się odblokuje.</p>
-        <p class="hint" id="expNote" style="margin-bottom:12px">Zapisuje dokładnie to, co widzisz, razem z korektami. Kerning i funkcje OpenType są przenoszone z oryginału. Zmień nazwę rodziny, jeśli licencja wymaga tego przy modyfikacjach.</p>
+        <p class="hint" id="expNote" style="margin-bottom:10px" title="Zapisuje dokładnie to, co widzisz, razem z korektami. Kerning i funkcje OpenType są przenoszone z oryginału.">Zapisuje to, co widzisz. Zmień nazwę rodziny, jeśli wymaga tego licencja.</p>
       </div>
       <div class="btn-row"><button class="btn" id="expSvg">Pobierz SVG</button></div>
       <div class="btn-row" style="margin-top:14px">
@@ -180,35 +186,77 @@
         <button class="btn" id="impJson">Wczytaj ustawienia</button>
       </div>
       <input type="file" id="jsonFile" accept=".json,application/json" hidden>
-      <p class="hint">Plik ustawień zawiera suwaki, Precyzję i wszystkie ręczne korekty. Praca zapisuje się też automatycznie w tej przeglądarce.</p>
+      <p class="hint" title="Plik ustawień zawiera suwaki, Precyzję i wszystkie ręczne korekty.">Praca zapisuje się też automatycznie w tej przeglądarce.</p>
+      </details>
+    </section>
+    <section>
+      <details class="fold">
+        <summary>Plik</summary>
+
+      <div class="file-info" id="fileInfo">Teraz: <b>kształty demo</b></div>
+      <div class="msg" id="msg"></div>
+      <div class="restore" id="restore" hidden></div>
+      <p class="hint">Pliki zostają w twojej przeglądarce — nic nie jest wysyłane. <a href="zasady.html" style="color:inherit">Zasady korzystania</a></p>
+      </details>
     </section>
   </aside>
 
+  <button class="rail-show" id="railShow" hidden title="Pokaż panel" aria-label="Pokaż panel"><svg class="ic"><use href="#ic-panel"/></svg></button>
   <main class="main">
     <div class="bar">
-      <button class="btn" id="openFile">Dodaj font</button>
-      <div class="seg" id="viewSeg" role="group" aria-label="Widok">
-        <button data-v="text" aria-pressed="true">Tekst</button>
-        <button data-v="glyphs" aria-pressed="false">Wszystkie glify</button>
-        <button data-v="edit" aria-pressed="false">Edycja glifu</button>
-      </div>
       <div class="editbar" id="editBar" hidden>
         <button class="iconbtn" id="gPrev" aria-label="Poprzedni glif">‹</button>
         <input id="gChar" type="text" maxlength="4" aria-label="Znak do edycji" spellcheck="false">
         <button class="iconbtn" id="gNext" aria-label="Następny glif">›</button>
         <span class="gname" id="gName"></span>
-        <div class="seg" id="vmodeSeg" role="group" aria-label="Tryb edycji">
-          <button data-v="corners" aria-pressed="true">Narożniki</button>
-          <button data-v="contour" aria-pressed="false">Kontur</button>
+        <div class="pop-wrap">
+          <button class="btn" id="baseBtn" aria-expanded="false" title="Glif, z którego czerpiesz korekty">Baza</button>
+          <div class="pop" id="basePop" hidden>
+            <label class="pop-row">Glif bazowy
+              <input id="baseChar" type="text" maxlength="4" spellcheck="false" placeholder="znak" aria-label="Glif bazowy">
+            </label>
+            <div class="btn-row">
+              <button class="btn" id="baseSuggest" hidden></button>
+              <button class="linkbtn" id="baseClear" hidden>Wyczyść</button>
+            </div>
+          </div>
         </div>
       </div>
-      <textarea class="textin" id="text" rows="1" aria-label="Tekst podglądu" spellcheck="false"></textarea>
-      <label class="size">Skala <input type="range" id="size" min="40" max="400" step="2" style="--c:var(--ink)"></label>
-      <label class="toggle"><input type="checkbox" id="showC" checked> Narożniki</label>
-      <label class="toggle"><input type="checkbox" id="showO"> Oryginał</label>
-      <label class="toggle" id="showGWrap" hidden><input type="checkbox" id="showG" checked> Siatka</label>
     </div>
     <div class="stage"><div class="sheet" id="sheet"></div></div>
+    <div class="preview" id="preview" hidden>
+      <textarea class="textin" id="text" rows="1" aria-label="Tekst podglądu" spellcheck="false"></textarea>
+      <div class="preview-art" id="previewArt"></div>
+    </div>
+    <div class="toolbar" id="toolbar">
+      <div class="tb-ctx" id="tbCtx" hidden></div>
+      <div class="tb-main" id="tbMain">
+        <button class="tb-btn wide" id="tbAdd" title="Dodaj font lub SVG"><svg class="ic"><use href="#ic-plus"/></svg><span>Dodaj font</span></button>
+        <div class="tb-sep"></div>
+        <div class="seg icons" id="viewSeg" role="group" aria-label="Widok">
+          <button data-v="glyphs" aria-pressed="true" title="Wszystkie glify" aria-label="Wszystkie glify"><svg class="ic"><use href="#ic-glyphs"/></svg></button>
+          <button data-v="edit" aria-pressed="false" title="Edycja glifu" aria-label="Edycja glifu"><svg class="ic"><use href="#ic-a-fill"/></svg></button>
+        </div>
+        <div class="tb-sep" id="tbSepMode"></div>
+        <div class="seg icons" id="toolSeg" role="group" aria-label="Narzędzie" hidden>
+          <button data-t="select" aria-pressed="true" title="Zaznaczanie (V)" aria-label="Zaznaczanie"><svg class="ic"><use href="#ic-arrow"/></svg></button>
+          <button data-t="pen" aria-pressed="false" title="Pióro (P) — klik na linii dodaje węzeł, Option + klik w węzeł usuwa" aria-label="Pióro"><svg class="ic"><use href="#ic-pen" id="penIcon"/></svg></button>
+        </div>
+        <div class="tb-sep"></div>
+        <div class="seg icons" id="vmodeSeg" role="group" aria-label="Tryb edycji">
+            <button data-v="corners" aria-pressed="true" title="Narożniki — ustawiasz zaokrąglenie" aria-label="Narożniki"><svg class="ic" aria-hidden="true"><use href="#ic-a-fill"/></svg></button>
+            <button data-v="contour" aria-pressed="false" title="Kontur — przesuwasz węzły i uchwyty" aria-label="Kontur"><svg class="ic" aria-hidden="true"><use href="#ic-a-line"/></svg></button>
+          </div>
+        <div class="tb-sep"></div>
+        <div class="tb-group">
+          <button class="tb-btn" id="tgT" aria-pressed="false" title="Podgląd tekstu pod kadrem" aria-label="Podgląd tekstu"><svg class="ic"><use href="#ic-text"/></svg></button>
+        </div>
+      </div>
+    </div>
+    <div class="corner">
+      <button class="tb-btn" id="tbReset" title="Wyzeruj zaokrąglenie" aria-label="Wyzeruj zaokrąglenie"><svg class="ic"><use href="#ic-reset"/></svg></button>
+      <label class="scale-corner" title="Skala podglądu">Skala <input type="range" id="size" min="40" max="400" step="2" style="--c:var(--ink)"></label>
+    </div>
     <div class="foot">
       <span class="count" id="count"></span>
       <span id="note"></span>
@@ -239,12 +287,13 @@
     <p class="hint">Pliki zostają w twojej przeglądarce — nic nie jest wysyłane.</p>
   </div>
 </div>
+<span hidden><input type="checkbox" id="showC" checked><input type="checkbox" id="showO"><input type="checkbox" id="showG" checked><span id="showGWrap"></span></span>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="vendor/opentype.min.js"></script>
-<script src="vendor/paper-core.min.js"></script>
-<script src="src/core.js"></script>
-<script src="src/vf.js"></script>
-<script src="src/app.js"></script>
+<script src="vendor/opentype.min.js?v=DEV"></script>
+<script src="vendor/paper-core.min.js?v=DEV"></script>
+<script src="src/core.js?v=DEV"></script>
+<script src="src/vf.js?v=DEV"></script>
+<script src="src/app.js?v=DEV"></script>
 </body>
 </html>
