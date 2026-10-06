@@ -1048,7 +1048,7 @@ function updatePanel(){
     ob.querySelector('span').textContent = `${orph.length} ${orph.length === 1 ? 'korekta nie trafia' : 'korekt nie trafia'} w żaden narożnik — prawdopodobnie zmieniły się progi wykrywania.`;
     $('npOrph').onclick = () => { checkpoint(); const Ee = state.ovr[info.key]; Ee.nodes = Ee.nodes.filter(n => !orph.includes(n)); cleanOvr(info.key); updatePanel(); schedule(); autosave(); };
   } else { ob.textContent = ''; ob.className = 'msg'; }
-  renderCtxBar();
+  animBar(renderCtxBar);
   renderBase();
   const keys = Object.keys(state.ovr).filter(k => k[0] === 'g' && hasOvr(k));
   $('npListWrap').hidden = !keys.length;
@@ -1737,12 +1737,34 @@ function renderCtxBar(){
   }
   ctx.hidden = false;
 }
+// Belka zmienia szerokość, gdy dochodzą albo znikają narzędzia. Skok w szerokości
+// gubi wzrok, więc mierzymy rozmiar przed zmianą i po niej, i przechodzimy między
+// nimi płynnie. Belka jest wyśrodkowana, więc rośnie i maleje symetrycznie.
+const EASE = 'cubic-bezier(.2,.7,.3,1)';
+function animBar(fn){
+  const m = $('tbMain'), c = $('tbCtx');
+  const w0 = m.getBoundingClientRect().width;
+  const c0 = c.hidden ? null : c.getBoundingClientRect().width;
+  fn();
+  const w1 = m.getBoundingClientRect().width;
+  if (Math.abs(w1 - w0) > 1 && w0 > 0)
+    m.animate([{ width: w0 + 'px' }, { width: w1 + 'px' }], { duration: 180, easing: EASE });
+  if (!c.hidden) {
+    const c1 = c.getBoundingClientRect().width;
+    if (c0 == null) c.animate([{ opacity: 0, transform: 'translateY(8px) scale(.96)' }, { opacity: 1, transform: 'none' }],
+                              { duration: 160, easing: EASE });
+    else if (Math.abs(c1 - c0) > 1)
+      c.animate([{ width: c0 + 'px' }, { width: c1 + 'px' }], { duration: 180, easing: EASE });
+  }
+}
 function syncToolbar(){
+  animBar(() => {
   renderCtxBar();
   $('viewSeg').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x.dataset.v === state.view));
   const wEdycji = state.mode === 'font' && state.view === 'edit';
   $('vmodeSeg').hidden = !wEdycji; $('tbSepMode').hidden = !wEdycji;
   $('viewSeg').hidden = state.mode !== 'font';
+  });
   for (const [b, c] of TB) $(b).setAttribute('aria-pressed', $(c).checked);
   $('tgT').setAttribute('aria-pressed', state.showT);
   $('tgT').hidden = state.mode !== 'font';

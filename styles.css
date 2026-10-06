@@ -281,11 +281,10 @@ section h2{margin:0 0 10px; font-size:12px; letter-spacing:.01em}
   bottom:calc(var(--previewH, 0px) + 54px);
   display:flex; flex-direction:column; align-items:center; gap:8px;
   background:transparent; border:0; padding:0; box-shadow:none}
-.tb-main, .tb-ctx{pointer-events:auto; display:flex; align-items:center; gap:8px; padding:6px;
+.tb-main, .tb-ctx{pointer-events:auto; display:flex; align-items:center; gap:8px; padding:6px; overflow:hidden; white-space:nowrap;
   background:var(--sheet); border:1px solid var(--line); border-radius:12px;
   box-shadow:0 8px 26px rgba(0,0,0,.14)}
-.tb-ctx{gap:6px; animation:tbIn .12s ease-out}
-@keyframes tbIn{from{opacity:0; transform:translateY(4px)}to{opacity:1; transform:none}}
+.tb-ctx{gap:6px; overflow:hidden; white-space:nowrap}
 .tb-ctx .tb-label{font-family:var(--mono); font-size:11.5px; color:var(--muted); padding:0 4px}
 .tb-chip{height:28px; display:flex; align-items:center; gap:6px; padding:0 9px; border:1px solid var(--line);
   border-radius:8px; background:var(--sheet); font-size:12px; color:var(--ink); cursor:pointer}
