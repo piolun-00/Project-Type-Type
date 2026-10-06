@@ -380,6 +380,10 @@ section h2{margin:0 0 10px; font-size:12px; letter-spacing:.01em}
 /* Gdy app chowa sam przycisk (np. siatka poza trybem edycji), znika z nim podpis. */
 .iconlbl:has(> .tb-btn[hidden]){display:none}
 
+/* Ramka zaznaczenia obszarowego: leży nad sceną i nie łapie kliknięć. */
+.marquee{position:fixed; z-index:60; pointer-events:none; border:1px solid var(--focus);
+  background:color-mix(in srgb, var(--focus) 12%, transparent); border-radius:1px}
+
 .tb-btn.wide{width:auto; gap:6px; padding:0 10px; display:flex; font-size:12.5px; color:var(--ink)}
 .tb-btn.wide svg{flex:none}
 

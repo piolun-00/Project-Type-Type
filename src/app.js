@@ -1597,6 +1597,54 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
     if (p) lastPane = p;
   }, true);
   let drag = null;
+  // --- zaznaczanie obszarowe (narzędzie strzałka) ---
+  // Przeciąganie po pustym miejscu w edycji glifu rysuje ramkę i zaznacza wszystko,
+  // czego środek w niej wylądował. Przewijanie zostaje na spacji i na gładziku.
+  let marq = null;
+  const marqBox = document.createElement('div');
+  marqBox.className = 'marquee'; marqBox.hidden = true;
+  document.body.appendChild(marqBox);
+  const marqStart = (e) => {
+    const pane = (e.target.closest && e.target.closest('.pane')) || document.querySelector('.edit-main') || st;
+    marq = { x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, id: e.pointerId, on: false, pane, add: e.shiftKey };
+  };
+  const marqRect = () => ({ l: Math.min(marq.x0, marq.x), t: Math.min(marq.y0, marq.y),
+                            r: Math.max(marq.x0, marq.x), b: Math.max(marq.y0, marq.y) });
+  const marqDraw = () => {
+    const R = marqRect();
+    marqBox.hidden = false;
+    marqBox.style.left = R.l + 'px'; marqBox.style.top = R.t + 'px';
+    marqBox.style.width = (R.r - R.l) + 'px'; marqBox.style.height = (R.b - R.t) + 'px';
+  };
+  const marqApply = () => {
+    const R = marqRect(), root = marq.pane, pb = root.getBoundingClientRect();
+    // ramka przycięta do widocznej części panelu — to, co wyjechało poza kadr, nie łapie się
+    R.l = Math.max(R.l, pb.left); R.t = Math.max(R.t, pb.top);
+    R.r = Math.min(R.r, pb.right); R.b = Math.min(R.b, pb.bottom);
+    const inside = (el) => {
+      const b = el.getBoundingClientRect(), cx = b.left + b.width / 2, cy = b.top + b.height / 2;
+      return cx >= R.l && cx <= R.r && cy >= R.t && cy <= R.b;
+    };
+    const pick = (sel, f) => [...root.querySelectorAll(sel)].filter(inside).map(f);
+    if (root.querySelector('[data-base-node]')) {           // połowa z bazą
+      const got = pick('[data-base-node]', (el) => { const [x, y] = el.dataset.baseNode.split(',').map(Number); return { x, y }; });
+      state.sel = [];
+      if (!marq.add) state.selBase = [];
+      for (const v of got) if (!state.selBase.some((q) => near(q, v))) state.selBase.push(v);
+    } else if (state.vmode === 'contour') {
+      const got = pick('[data-vp]', (el) => { const [ci, ni, part] = el.dataset.vp.split(','); return { ci: +ci, ni: +ni, part }; })
+        .filter((s) => s.part === 'node');
+      if (!marq.add) state.vsel = [];
+      for (const s of got) if (!state.vsel.some((q) => vkey(q) === vkey(s))) state.vsel.push(s);
+      syncSelFromVsel();
+    } else {
+      const got = pick('[data-node]', (el) => { const [x, y] = el.dataset.node.split(',').map(Number); return { x, y }; });
+      state.selBase = [];
+      if (!marq.add) state.sel = [];
+      for (const v of got) if (!state.sel.some((q) => near(q, v))) state.sel.push(v);
+    }
+    updatePanel(); schedule();
+  };
   // --- dwa palce: szczypanie przybliża, przesuwanie dwoma palcami przewija ---
   // Działa w każdym widoku, także w edycji glifu, gdzie jeden palec celowo nic nie robi.
   const touches = new Map();
@@ -1638,6 +1686,7 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
     if (hitB0 && !state.spacePan) { const [x, y] = hitB0.dataset.baseNode.split(',').map(Number); selectBaseNode({ x, y }, e.shiftKey); return; }
     if (state.mode === 'font' && state.view === 'edit' && state.vmode === 'contour' && !state.spacePan) {
       if (!e.shiftKey && !e.target.closest('[data-vs]') && state.vsel.length) { state.vsel = []; state.sel = []; updatePanel(); schedule(); }
+      if (state.tool === 'select') marqStart(e);
       return;
     }
     const hit = e.target.closest('[data-node]');
@@ -1653,6 +1702,7 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
     // klik obok narożnika odznacza — bez tego zaznaczenie wisiało aż do Escape
     if (state.mode === 'font' && state.view === 'edit' && state.vmode === 'corners'
         && !state.spacePan && !e.shiftKey && (state.sel.length || state.selBase.length)) { state.sel = []; state.selBase = []; updatePanel(); schedule(); }
+    if (state.mode === 'font' && state.view === 'edit' && state.tool === 'select' && !state.spacePan) { marqStart(e); return; }
     let el = st;
     if (state.mode === 'font' && state.view === 'edit') {
       if (state.vmode === 'contour' && !state.spacePan) return;      // tam przeciąganie rusza węzły
@@ -1669,6 +1719,14 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
     }
     if (pinch) return;
     if (vectorMove(e)) return;
+    if (marq && e.pointerId === marq.id) {
+      marq.x = e.clientX; marq.y = e.clientY;
+      if (!marq.on) {
+        if (Math.hypot(marq.x - marq.x0, marq.y - marq.y0) < 4) return;
+        marq.on = true; try { st.setPointerCapture(e.pointerId); } catch (err) {}
+      }
+      marqDraw(); e.preventDefault(); return;
+    }
     if (!drag || e.pointerId !== drag.id) return;
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
     // przechwycenie dopiero po ruchu — zwykły klik i dwuklik trafiają w glif
@@ -1680,6 +1738,10 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
     if (e.pointerType === 'touch') {
       touches.delete(e.pointerId);
       if (touches.size < 2 && pinch) { pinch = null; st.dataset.dragged = '1'; setTimeout(() => { delete st.dataset.dragged; }, 0); return; }
+    }
+    if (marq && e.pointerId === marq.id) {
+      if (marq.on) { marqApply(); st.dataset.dragged = '1'; setTimeout(() => { delete st.dataset.dragged; }, 0); }
+      marq = null; marqBox.hidden = true; return;
     }
     if (vectorUp(e)) return;
     if (drag && e.pointerId === drag.id) {
