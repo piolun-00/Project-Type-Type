@@ -531,8 +531,8 @@ function renderEdit(rp, counts){
   // na każdą klatkę. Dlatego budujemy je tylko wtedy, gdy naprawdę się zmieniło.
   const lines = sampleLines(g), sPx = 26 / upm, lh = H * 1.05;
   const sKey = state.loadId + '|' + g.index + '|' + JSON.stringify(rp) + '|' + detKey + '|' + JSON.stringify(state.ovr);
-  let sPaths, sW;
-  if (sampleCache.key === sKey) { sPaths = sampleCache.paths; sW = sampleCache.w; }
+  let sPaths, sW, sReused = false;
+  if (sampleCache.key === sKey) { sPaths = sampleCache.paths; sW = sampleCache.w; sReused = true; }
   else {
     sPaths = ''; sW = 0;
     lines.forEach((t, li) => {
@@ -641,7 +641,7 @@ function renderEdit(rp, counts){
       + `<div class="pane-wrap"><span class="pane-lbl">Edytujesz — ${etyk(g)}</span><div class="pane"><div class="pane-box">${pane(g, false)}</div></div></div>`
     : pane(g, false);
   $('note').textContent = `${g.name || 'glif ' + g.index}, szerokość ${adv} j.`;
-  return `<div class="edit-wrap"><div class="edit-main">${glyphSvg}</div><div class="edit-sample" style="height:${sampleH}px">${sampleSvg}</div></div>`;
+  return { main: glyphSvg, sample: sampleSvg, sampleH, reused: sReused };
 }
 
 function render(){
@@ -668,7 +668,11 @@ function render(){
   if (editing) {
     const src0 = sheet.querySelector('.edit-main .pane') || sheet.querySelector('.edit-main');
     const keep = src0 ? [src0.scrollLeft, src0.scrollTop] : null;
-    sheet.innerHTML = renderEdit(rp, counts);
+    const R2 = renderEdit(rp, counts);
+    const wrap = sheet.querySelector('.edit-wrap'), em = wrap && wrap.querySelector('.edit-main');
+    if (em && R2.reused) em.innerHTML = R2.main;      // tylko rysunek, zdanie zostaje nietknięte
+    else sheet.innerHTML = `<div class="edit-wrap"><div class="edit-main">${R2.main}</div>`
+                         + `<div class="edit-sample" style="height:${R2.sampleH}px">${R2.sample}</div></div>`;
     lastPane = null;
     if (keep) for (const el of (sheet.querySelectorAll('.edit-main .pane').length ? sheet.querySelectorAll('.edit-main .pane') : sheet.querySelectorAll('.edit-main')))
       { el.scrollLeft = keep[0]; el.scrollTop = keep[1]; }
