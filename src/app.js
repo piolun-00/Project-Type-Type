@@ -654,9 +654,12 @@ function render(){
   const editing = state.mode === 'font' && state.view === 'edit';
   sheet.classList.toggle('editing', editing); sheet.parentElement.classList.toggle('edit-mode', editing);
   if (editing) {
-    const em0 = sheet.querySelector('.edit-main'), keep = em0 ? [em0.scrollLeft, em0.scrollTop] : null;
+    const src0 = sheet.querySelector('.edit-main .pane') || sheet.querySelector('.edit-main');
+    const keep = src0 ? [src0.scrollLeft, src0.scrollTop] : null;
     sheet.innerHTML = renderEdit(rp, counts);
-    const em1 = sheet.querySelector('.edit-main'); if (em1 && keep) { em1.scrollLeft = keep[0]; em1.scrollTop = keep[1]; }
+    lastPane = null;
+    if (keep) for (const el of (sheet.querySelectorAll('.edit-main .pane').length ? sheet.querySelectorAll('.edit-main .pane') : sheet.querySelectorAll('.edit-main')))
+      { el.scrollLeft = keep[0]; el.scrollTop = keep[1]; }
     renderCount(counts); return;
   }
   if (state.mode === 'font') {
@@ -1442,8 +1445,26 @@ function zoomCfg(){
   if (state.mode === 'font') return { min: 40, max: 1600, step: 2, get: () => state.size, set: v => state.size = v, label: 'Rozmiar stopnia w pikselach' };
   return { min: 20, max: 1500, step: 5, get: () => state.zoom, set: v => state.zoom = v, label: 'Powiększenie w procentach' };
 }
-// powiększenie z zachowaniem punktu pod kursorem (cx, cy względem obszaru podglądu)
-function scroller(){ return (state.mode === 'font' && state.view === 'edit' && document.querySelector('.edit-main')) || document.querySelector('.stage'); }
+// Przy podzielonym widoku każda połowa przewija się sama, ale obie trzymamy
+// w tym samym miejscu — żeby ten sam fragment glifu był widoczny po obu stronach.
+const panes = () => [...document.querySelectorAll('.edit-main .pane')];
+let syncing = false;
+function syncPanes(src){
+  if (syncing || !src) return;
+  syncing = true;
+  for (const p of panes()) if (p !== src) { p.scrollLeft = src.scrollLeft; p.scrollTop = src.scrollTop; }
+  syncing = false;
+}
+let lastPane = null;
+// element, którym przewijamy: w edycji glifu połowa pod kursorem, inaczej cała scena
+function scroller(){
+  if (state.mode === 'font' && state.view === 'edit') {
+    const ps = panes();
+    if (ps.length) return (lastPane && ps.includes(lastPane) && lastPane) || ps[ps.length - 1];
+    return document.querySelector('.edit-main') || document.querySelector('.stage');
+  }
+  return document.querySelector('.stage');
+}
 // Przybliżanie idzie zawsze przez suwak Skala: szczypanie na gładziku, Ctrl + kółko,
 // klawisze +/− i sam suwak robią dokładnie to samo. Dzięki temu suwak zawsze pokazuje
 // aktualny stan, a gest nie walczy z własnym kotwiczeniem na kursorze.
@@ -1485,6 +1506,15 @@ function applyZoom(){
 $('size').addEventListener('input', e => zoomTo(+e.target.value));
 (() => {
   const st = document.querySelector('.stage');
+  // scroll nie bąbelkuje, ale w fazie przechwytywania dociera do przodków
+  st.addEventListener('scroll', (e) => {
+    const p = e.target && e.target.closest && e.target.closest('.pane');
+    if (p) syncPanes(p);
+  }, true);
+  st.addEventListener('pointermove', (e) => {
+    const p = e.target && e.target.closest && e.target.closest('.pane');
+    if (p) lastPane = p;
+  }, true);
   let drag = null;
   // --- dwa palce: szczypanie przybliża, przesuwanie dwoma palcami przewija ---
   // Działa w każdym widoku, także w edycji glifu, gdzie jeden palec celowo nic nie robi.
@@ -1530,7 +1560,9 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
     let el = st;
     if (state.mode === 'font' && state.view === 'edit') {
       if (state.vmode === 'contour' && !state.spacePan) return;      // tam przeciąganie rusza węzły
-      el = document.querySelector('.edit-main'); if (!el) return;
+      el = (e.target.closest && e.target.closest('.pane')) || document.querySelector('.edit-main');
+      if (!el) return;
+      lastPane = el.classList && el.classList.contains('pane') ? el : lastPane;
     }
     drag = { el, x: e.clientX, y: e.clientY, sl: el.scrollLeft, stp: el.scrollTop, id: e.pointerId, on: false };
   });
@@ -1546,6 +1578,7 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
     // przechwycenie dopiero po ruchu — zwykły klik i dwuklik trafiają w glif
     if (!drag.on) { if (Math.hypot(dx, dy) < 4) return; drag.on = true; st.setPointerCapture(e.pointerId); st.classList.add('dragging'); }
     drag.el.scrollLeft = drag.sl - dx; drag.el.scrollTop = drag.stp - dy;
+    if (drag.el.classList && drag.el.classList.contains('pane')) syncPanes(drag.el);
   });
   const end = e => {
     if (e.pointerType === 'touch') {
