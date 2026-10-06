@@ -1122,8 +1122,8 @@ function renderBase(){
     else {
       wiersz(r, row);
       copyBtn.hidden = false; applyBtn.hidden = true;
-      copyBtn.disabled = !r.n;
-      copyBtn.title = r.n ? '' : 'Ten narożnik nie ma ręcznej korekty — nie ma czego kopiować';
+      copyBtn.disabled = false;
+      copyBtn.title = 'Cmd/Ctrl + C';
       box.hidden = false;
     }
   } else if (state.sel.length === 1) {
@@ -1701,21 +1701,36 @@ $('baseApply').addEventListener('click', () => {
   setNodes((n) => { n.type = r.n.type; n.mode = r.n.mode; n.amt = r.n.amt; n.absorb = r.n.absorb; });
   toast('Przeniesiono wartości z bazy');
 });
-$('baseCopy').addEventListener('click', () => {
-  if (state.selBase.length !== 1) return;
-  const D = baseData(); if (!D) return;
-  const r = D.rows.find((q) => near(q.v, state.selBase[0]));
-  if (!r || !r.n) return;
-  const bg = D.bg;
-  state.clip = { type: r.n.type, mode: r.n.mode, amt: r.n.amt, absorb: r.n.absorb, eff: r.t,
-                 from: bg.unicode != null ? '„' + String.fromCodePoint(bg.unicode) + '”' : (bg.name || '#' + bg.index) };
-  updatePanel(); toast('Skopiowano ustawienie');
-});
-$('basePaste').addEventListener('click', () => {
-  const c = state.clip; if (!c || !state.sel.length) return;
+const glyphLab = (gl) => (gl.unicode != null ? '„' + String.fromCodePoint(gl.unicode) + '”' : (gl.name || '#' + gl.index));
+// Do schowka trafia ustawienie narożnika. Gdy nie ma przy nim ręcznej korekty,
+// bierzemy to, co wykrył automat — wklejone gdzie indziej ustawi tam ten sam typ
+// na pełnej sile, co bywa dokładnie tym, o co chodzi.
+function copyNode(){
+  let r = null, src = null;
+  if (state.selBase.length === 1) {
+    const D = baseData(); if (!D) return false;
+    r = D.rows.find((q) => near(q.v, state.selBase[0])); src = D.bg;
+  } else if (state.sel.length === 1) {
+    const info = editInfo(), j = info.joints.find((q) => q.c && near(q.v, state.sel[0]));
+    if (j) { r = { v: j.v, n: j.n || null, t: effType(j.n, j.c) }; src = editGlyph(); }
+  }
+  if (!r) return false;
+  const n = r.n || { type: r.t, mode: 'rel', amt: 100, absorb: 'auto' };
+  state.clip = { type: n.type === 'auto' ? r.t : n.type, mode: n.mode, amt: n.amt, absorb: n.absorb,
+                 eff: r.t, from: glyphLab(src) };
+  updatePanel();
+  toast('Skopiowano ustawienie' + (r.n ? '' : ' (wykryte automatem)'));
+  return true;
+}
+function pasteNode(){
+  const c = state.clip;
+  if (!c || !state.sel.length) return false;
   setNodes((n) => { n.type = c.type; n.mode = c.mode; n.amt = c.amt; n.absorb = c.absorb; });
-  toast('Wklejono ustawienie');
-});
+  toast(state.sel.length > 1 ? 'Wklejono do ' + state.sel.length + ' węzłów' : 'Wklejono ustawienie');
+  return true;
+}
+$('baseCopy').addEventListener('click', copyNode);
+$('basePaste').addEventListener('click', pasteNode);
 $('clipClear').addEventListener('click', () => { state.clip = null; updatePanel(); });
 $('baseClear').addEventListener('click', () => setBase(null));
 $('gPrev').addEventListener('click', () => stepGlyph(-1));
@@ -1743,6 +1758,11 @@ document.addEventListener('keydown', e => {
   const mod = e.metaKey || e.ctrlKey, k = e.key.toLowerCase();
   if (mod && k === 'z' && !typing) { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if (mod && k === 'y' && !typing) { e.preventDefault(); redo(); return; }
+  // Cmd/Ctrl + C kopiuje ustawienie zaznaczonego narożnika, Cmd/Ctrl + V je wkleja
+  if (mod && k === 'c' && !typing && state.mode === 'font' && state.view === 'edit'
+      && (state.selBase.length === 1 || state.sel.length === 1)) { if (copyNode()) { e.preventDefault(); return; } }
+  if (mod && k === 'v' && !typing && state.mode === 'font' && state.view === 'edit'
+      && state.sel.length) { if (pasteNode()) { e.preventDefault(); return; } }
   if (state.mode !== 'font' || state.view !== 'edit' || typing) return;
   if (e.key === ' ' && !e.repeat) { e.preventDefault(); state.spacePan = true; document.querySelector('.stage').classList.add('space'); return; }
   if (e.key === ' ') { e.preventDefault(); return; }
