@@ -1681,6 +1681,16 @@ $('text').addEventListener('input', e => { state.text = e.target.value; fitText(
 // aplikacji została nietknięta, zmienił się tylko sposób klikania.
 const TB = [['tgG', 'showG'], ['tgC', 'showC'], ['tgO', 'showO']];
 $('tbAdd').addEventListener('click', openFileModal);
+// Chowanie panelu. Zapamiętujemy wybór, żeby nie wracał przy każdym wejściu.
+function setRail(open){
+  document.querySelector('.app').classList.toggle('rail-closed', !open);
+  $('railShow').hidden = open;
+  try { localStorage.setItem('type-type:rail', open ? '1' : '0'); } catch(e) {}
+  schedule();
+}
+$('railToggle').addEventListener('click', () => setRail(false));
+$('railShow').addEventListener('click', () => setRail(true));
+try { if (localStorage.getItem('type-type:rail') === '0') setRail(false); } catch(e) {}
 $('tbReset').addEventListener('click', () => { for (const k of ['end','out','in']) setParam(k, 0); });
 $('tgT').addEventListener('click', () => {
   state.showT = !state.showT;
@@ -1752,6 +1762,7 @@ $('showO').addEventListener('change', e => { state.showO = e.target.checked; sch
 $('viewSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return;
   if (b.dataset.v === 'edit' && state.view !== 'edit' && !glyphCmds(editGlyph()).length) state.edit = firstGlyph();
   state.view = b.dataset.v; state.sel = []; syncUI(); updatePanel(); schedule(); });
+document.querySelector('.app').addEventListener('transitionend', (e) => { if (e.propertyName === 'grid-template-columns') schedule(); });
 window.addEventListener('resize', () => { if (state.view === 'glyphs' || state.view === 'edit' || state.mode === 'svg') schedule(); });
 
 const fileModal = $('fileModal');

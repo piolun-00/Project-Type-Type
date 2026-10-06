@@ -345,3 +345,18 @@ section h2{margin:0 0 10px; font-size:12px; letter-spacing:.01em}
 .preview-art .hl{fill:var(--end)}
 .preview-art [data-gi]{cursor:pointer}
 .preview-art [data-gi]:not(.hl):hover{fill:var(--muted)}
+
+/* chowany panel */
+.app{transition:grid-template-columns .16s ease}
+.app.rail-closed{grid-template-columns:0 1fr}
+.app.rail-closed .rail{overflow:hidden; padding-left:0; padding-right:0; border-right:0}
+.brand{align-items:center}
+.brand h1{flex:1}
+#railToggle{color:var(--muted)}
+.rail-show{position:fixed; left:10px; top:12px; z-index:30; width:30px; height:30px; display:grid; place-items:center;
+  border:1px solid var(--line); border-radius:8px; background:var(--sheet); color:var(--muted); cursor:pointer;
+  box-shadow:0 4px 14px rgba(0,0,0,.1)}
+.rail-show:hover{color:var(--ink); border-color:var(--ink)}
+/* rząd przełączników podglądu w panelu */
+.view-row{display:flex; align-items:center; gap:3px; padding:0 0 14px; border-bottom:1px solid var(--line); margin-bottom:4px}
+.view-row-lbl{margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--faint)}
