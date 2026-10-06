@@ -451,6 +451,7 @@ function glyphItems(){
 }
 
 /* ================= widok edycji glifu ================= */
+let sampleCache = { key: '', paths: '', w: 0 };
 function editGlyph(){ return state.font.glyphs.get(state.edit) }
 // Szerokość, od której liczymy stały kadr. Nie bierzemy najszerszego glifu w foncie,
 // bo jeden wyjątek (w ABC Areal 1500 j. przy literze A równej 718) rozpycha ramkę
@@ -525,16 +526,24 @@ function renderEdit(rp, counts){
   const H = asc - desc, adv = g.advanceWidth || upm * 0.5, key = 'g' + g.index;
   const st = document.querySelector('.stage');
   const contour = state.vmode === 'contour';
-  // przykładowe zdanie (na dole)
+  // Przykładowe zdanie (na dole). Ma własny, stały stopień, więc przy przybliżaniu
+  // ani przewijaniu się nie zmienia — a kosztuje czterdzieści kilka zaokrągleń glifów
+  // na każdą klatkę. Dlatego budujemy je tylko wtedy, gdy naprawdę się zmieniło.
   const lines = sampleLines(g), sPx = 26 / upm, lh = H * 1.05;
-  let sPaths = '', sW = 0;
-  lines.forEach((t, li) => {
-    const L = layoutLine(f, t, asc + li * lh); sW = Math.max(sW, L.w);
-    for (const it of L.items) {
-      const gg = it.g, gc = glyphCmds(gg); if (!gc.length) continue;
-      sPaths += `<path data-gi="${gg.index}"${gg.index === g.index ? ' class="hl"' : ''} d="${R.toPathData(roundShape('g' + gg.index, gc, 'nonzero', rp).cm, it.x, it.y, 1, true, 1)}"/>`;
-    }
-  });
+  const sKey = state.loadId + '|' + g.index + '|' + JSON.stringify(rp) + '|' + detKey + '|' + JSON.stringify(state.ovr);
+  let sPaths, sW;
+  if (sampleCache.key === sKey) { sPaths = sampleCache.paths; sW = sampleCache.w; }
+  else {
+    sPaths = ''; sW = 0;
+    lines.forEach((t, li) => {
+      const L = layoutLine(f, t, asc + li * lh); sW = Math.max(sW, L.w);
+      for (const it of L.items) {
+        const gg = it.g, gc = glyphCmds(gg); if (!gc.length) continue;
+        sPaths += `<path data-gi="${gg.index}"${gg.index === g.index ? ' class="hl"' : ''} d="${R.toPathData(roundShape('g' + gg.index, gc, 'nonzero', rp).cm, it.x, it.y, 1, true, 1)}"/>`;
+      }
+    });
+    sampleCache = { key: sKey, paths: sPaths, w: sW };
+  }
   const sH = lh * (lines.length - 1) + H;
   // Pasek ze zdaniem rezerwuje miejsce zawsze na dwie linie, nawet gdy rysujemy jedną.
   // Inaczej dla znaków bez pangramu (np. „.”) na glif zostawało więcej miejsca
