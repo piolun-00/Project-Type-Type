@@ -117,7 +117,8 @@ details[open] summary{margin-bottom:14px}
 .size input[type=range]::-moz-range-track{height:4px; border:0; background:var(--line)}
 .size input[type=range]::-webkit-slider-thumb{width:14px; height:14px; margin-top:-5px; border-color:var(--ink)}
 
-.stage{flex:1; overflow:auto; padding:0; cursor:grab; touch-action:none; overscroll-behavior:contain}
+.stage{flex:1; overflow:auto; padding:0; cursor:grab; touch-action:none; overscroll-behavior:contain;
+  user-select:none; -webkit-user-select:none}
 .stage.dragging{cursor:grabbing; user-select:none}
 .sheet{background:var(--sheet); border-radius:0; min-height:100%; min-width:100%; width:max-content; padding:28px; display:flex}
 .sheet svg{display:block; flex:none; margin:auto}
@@ -166,7 +167,7 @@ details[open] summary{margin-bottom:14px}
 .grid-major{stroke:var(--line); stroke-width:1; vector-effect:non-scaling-stroke}
 .metric{stroke:var(--end); stroke-width:1; vector-effect:non-scaling-stroke; opacity:.55; stroke-dasharray:4 3}
 .metric.baseline{stroke:var(--ink); opacity:.75; stroke-width:1.25; stroke-dasharray:6 4}
-.metric-label{fill:var(--end); opacity:.8; font-family:inherit}
+.metric-label{fill:var(--end); opacity:.8; font-family:inherit; pointer-events:none; user-select:none; -webkit-user-select:none}
 .guide{fill:none; stroke:var(--line); stroke-width:1; vector-effect:non-scaling-stroke}
 .badge{fill:var(--ink)}
 .cell-hit{fill:transparent}
@@ -238,3 +239,5 @@ details[open] summary{margin-bottom:14px}
 
 #clipWrap{margin-top:12px; border-top:1px dashed var(--line); padding-top:12px}
 .m-echo{fill:none; stroke:var(--focus); stroke-width:1.5; vector-effect:non-scaling-stroke; stroke-dasharray:3 3; opacity:.8}
+
+.sheet svg text{pointer-events:none; user-select:none; -webkit-user-select:none}
