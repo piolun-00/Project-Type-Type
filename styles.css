@@ -255,3 +255,21 @@ details[open] summary{margin-bottom:14px}
 
 .picked{margin:0 0 10px; font-size:13px; color:var(--muted)}
 .picked b{color:var(--ink); font-weight:600}
+
+/* --- odchudzony panel: gęstsze odstępy, drobniejsze kontrolki --- */
+.rail{padding:18px 18px 32px}
+section{padding:14px 0}
+section h2{margin:0 0 10px; font-size:12px; letter-spacing:.01em}
+.hint{font-size:12px; margin:5px 0 0}
+.ctrl{margin-bottom:12px}
+.ctrl-head label{font-size:12.5px}
+.np-row{margin-bottom:10px}
+.np-h3{margin:14px 0 7px; padding-top:12px; font-size:12px}
+.seg.small button{padding:5px 8px; font-size:12px}
+.seg.icons button{padding:5px 9px; display:inline-flex; align-items:center}
+.seg.icons svg{width:16px; height:16px; display:block}
+.iconbtn.lg{width:34px; height:34px; border:1px solid var(--line); border-radius:9px; background:var(--sheet)}
+.iconbtn.lg svg{width:17px; height:17px; display:block; margin:auto}
+.iconbtn.lg:hover{border-color:var(--ink)}
+.iconbtn.lg:disabled{opacity:.4; cursor:default}
+.lbl[title], label[title], .hint[title]{cursor:help; text-decoration:underline dotted var(--line); text-underline-offset:3px}

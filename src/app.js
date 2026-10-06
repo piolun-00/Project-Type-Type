@@ -982,7 +982,7 @@ function updatePanel(){
   if (contour) {
     const nodes = state.vsel.filter(s => s.part === 'node');
     $('vHint').textContent = !state.vsel.length
-      ? 'Edytujesz kontur źródłowy, przed zaokrągleniem. Kliknij węzeł na glifie; dwuklik na linii dodaje nowy.'
+      ? 'Kliknij węzeł; dwuklik na linii dodaje nowy.'
       : `Zaznaczone: ${nodes.length ? nodes.length + (nodes.length === 1 ? ' węzeł' : ' węzły') : ''}${nodes.length && state.vsel.length > nodes.length ? ' i ' : ''}${state.vsel.length > nodes.length ? (state.vsel.length - nodes.length) + ' uchwyt' : ''}.`;
     $('vBtns').hidden = !nodes.length;
     $('vCoords').hidden = nodes.length !== 1;
@@ -996,10 +996,9 @@ function updatePanel(){
   const gs = E && E.scale != null ? E.scale : 100;
   $('s-gscale').value = gs; $('n-gscale').value = gs; paint($('s-gscale'));
   const sel = selectedJoints(info), corners = sel.filter(j => j.c), points = sel.filter(j => !j.c);
+  $('npHint').title = 'Puste kółka to punkty, których algorytm nie uznał za narożniki — po kliknięciu możesz je wymusić. Strzałki przeskakują między narożnikami.';
   $('npHint').textContent = !sel.length
-    ? (contour
-       ? 'Zaznacz węzeł na konturze, żeby ustawić jego zaokrąglenie.'
-       : 'Nic nie zaznaczono. Puste kółka na glifie to punkty, których algorytm nie uznał za narożniki — po kliknięciu możesz je wymusić. Strzałki przeskakują między narożnikami.')
+    ? (contour ? 'Zaznacz węzeł, żeby ustawić jego zaokrąglenie.' : 'Nic nie zaznaczono.')
     : `Zaznaczone: ${corners.length ? corners.length + ' ' + (corners.length === 1 ? 'narożnik' : 'narożniki') : ''}${corners.length && points.length ? ' i ' : ''}${points.length ? points.length + ' ' + (points.length === 1 ? 'punkt bez narożnika' : 'punkty bez narożnika') : ''}.`;
   $('npCtrls').hidden = !corners.length;
   if (corners.length) {
@@ -1011,7 +1010,8 @@ function updatePanel(){
     $('s-namt').value = n.amt; $('n-namt').value = n.amt; paint($('s-namt'));
     $('s-namt').disabled = $('n-namt').disabled = off;
     $('npMode').querySelectorAll('button').forEach(b => b.disabled = off);
-    $('npAmtLabel').textContent = n.mode === 'abs' ? 'Wartość (skala suwaka, niezależna)' : '% suwaka globalnego';
+    $('npAmtLabel').textContent = n.mode === 'abs' ? 'Wartość' : '% suwaka';
+    $('npAmtLabel').title = n.mode === 'abs' ? 'Wartość niezależna od suwaka globalnego' : 'Procent wartości suwaka globalnego dla tego typu narożnika';
   }
   const forcedSel = corners.filter(j => j.c.forced);
   const fb = $('npForce');
@@ -1116,14 +1116,14 @@ function renderBase(){
     el.append(pos, typ, val);
   };
   const row = $('baseNode'), copyBtn = $('baseCopy'), applyBtn = $('baseApply');
-  msg.textContent = 'Baza: glif ' + nazwa + '.';
+  msg.textContent = 'Baza: ' + nazwa + '.';
   if (state.selBase.length === 1) {
     // zaznaczony węzeł po stronie bazy — można z niego skopiować ustawienie
     let r = D.rows.find((q) => near(q.v, state.selBase[0]));
     // w trybie Kontur węzeł może nie być narożnikiem — wtedy niesie samo położenie
     if (!r && state.vmode === 'contour') r = { v: state.selBase[0], n: null, t: null };
     $('baseNodeLbl').textContent = 'Zaznaczony węzeł w bazie';
-    if (!r) { msg.textContent = 'Baza: glif ' + nazwa + '. Ten punkt nie jest narożnikiem.'; box.hidden = true; }
+    if (!r) { msg.textContent = 'Baza: ' + nazwa + '. To nie narożnik.'; box.hidden = true; }
     else {
       wiersz(r, row);
       copyBtn.hidden = false; applyBtn.hidden = true;
@@ -1136,7 +1136,7 @@ function renderBase(){
     // zaznaczony węzeł po stronie edytowanego glifu — pokazujemy, co baza ma w tym miejscu
     const r = baseAt(state.sel[0]);
     $('baseNodeLbl').textContent = 'Baza w tym samym miejscu';
-    if (!r) { msg.textContent = 'Baza: glif ' + nazwa + '. W tym miejscu baza nie ma narożnika.'; box.hidden = true; }
+    if (!r) { msg.textContent = 'Baza: ' + nazwa + '. Tu nie ma narożnika.'; box.hidden = true; }
     else {
       wiersz(r, row);
       copyBtn.hidden = true; applyBtn.hidden = false;
@@ -1145,7 +1145,7 @@ function renderBase(){
       box.hidden = false;
     }
   } else {
-    msg.textContent = 'Baza: glif ' + nazwa + '. Kliknij węzeł po lewej, żeby skopiować jego ustawienie, albo po prawej, żeby je wkleić.';
+    msg.textContent = 'Baza: ' + nazwa + '. Kliknij po lewej, żeby kopiować; po prawej, żeby wkleić.';
     box.hidden = true;
   }
   renderClip();
