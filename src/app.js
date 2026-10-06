@@ -526,7 +526,7 @@ function renderEdit(rp, counts){
   const st = document.querySelector('.stage');
   const contour = state.vmode === 'contour';
   // przykładowe zdanie (na dole)
-  const lines = sampleLines(g), sPx = 54 / upm, lh = H * 1.05;
+  const lines = sampleLines(g), sPx = 36 / upm, lh = H * 1.05;
   let sPaths = '', sW = 0;
   lines.forEach((t, li) => {
     const L = layoutLine(f, t, asc + li * lh); sW = Math.max(sW, L.w);
@@ -619,7 +619,8 @@ function renderEdit(rp, counts){
       marks += `<circle class="m-hit" data-${isBase ? 'base-node' : 'node'}="${v.x.toFixed(2)},${v.y.toFixed(2)}" cx="${cx}" cy="${cy}" r="${hitR.toFixed(2)}"/>`;
     }));
     if (vec) marks += renderContourMarks(curCons(), asc, px);
-    const gridSvg = state.showG ? renderGrid(box, px, asc, isBase) : '';
+    // przy podziale podpisy linii metrycznych tylko raz, po lewej stronie
+    const gridSvg = state.showG ? renderGrid(box, px, asc, split ? !isBase : false) : '';
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.floor(box.w * px)}" height="${Math.floor(box.h * px)}" viewBox="${box.x.toFixed(1)} ${box.y.toFixed(1)} ${box.w.toFixed(1)} ${box.h.toFixed(1)}" role="img" aria-label="${isBase ? 'Glif bazowy' : 'Edytowany glif'}">`
       + gridSvg + `<g class="glyph">${paths}</g>` + (state.showO ? `<g class="orig">${origs}</g>` : '') + `<g>${marks}</g></svg>`;
   };
@@ -1105,7 +1106,7 @@ function renderBase(){
     pos.textContent = Math.round(r.v.x) + ', ' + Math.round(r.v.y);
     const typ = document.createElement('span'); typ.textContent = TYPE_PL[r.t] || r.t;
     const val = document.createElement('span'); val.className = 'val';
-    val.textContent = r.n ? (r.t === 'off' ? 'ostry' : amtLabel(r.n)) : 'bez korekty (wykryty automatem)';
+    val.textContent = r.n ? (r.t === 'off' ? 'ostry' : amtLabel(r.n)) : 'bez korekty';
     el.append(pos, typ, val);
   };
   const row = $('baseNode'), copyBtn = $('baseCopy'), applyBtn = $('baseApply');
@@ -1527,8 +1528,8 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
     if (state.mode === 'font' && state.view === 'edit' && state.vmode === 'corners'
         && !state.spacePan && !e.shiftKey && (state.sel.length || state.selBase.length)) { state.sel = []; state.selBase = []; updatePanel(); schedule(); }
     let el = st;
-    if (state.mode === 'font' && state.view === 'edit') {             // w edycji przesuwanie tylko ze spacją
-      if (!state.spacePan) return;
+    if (state.mode === 'font' && state.view === 'edit') {
+      if (state.vmode === 'contour' && !state.spacePan) return;      // tam przeciąganie rusza węzły
       el = document.querySelector('.edit-main'); if (!el) return;
     }
     drag = { el, x: e.clientX, y: e.clientY, sl: el.scrollLeft, stp: el.scrollTop, id: e.pointerId, on: false };
