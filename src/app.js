@@ -560,7 +560,7 @@ function renderEdit(rp, counts){
   // podświetla się samo po obu stronach — nic nie trzeba dopasowywać.
   const baseIdx = state.base[state.edit];
   const bg = (baseIdx != null && baseIdx !== g.index && f.glyphs.get(baseIdx)) || null;
-  const split = !!bg && !contour;              // w trybie Kontur edytujesz jeden glif, podział tylko myli
+  const split = !!bg;
   const areaW = Math.max(200, st.clientWidth - 56), areaH = Math.max(160, st.clientHeight - 56 - sampleH);
   const paneW = split ? (areaW - 14) / 2 : areaW;
   const px = Math.min((paneW - 48) / gw, (areaH - 48) / gh) * state.ezoom / 100;
@@ -619,6 +619,7 @@ function renderEdit(rp, counts){
       marks += `<circle class="m-hit" data-${isBase ? 'base-node' : 'node'}="${v.x.toFixed(2)},${v.y.toFixed(2)}" cx="${cx}" cy="${cy}" r="${hitR.toFixed(2)}"/>`;
     }));
     if (vec) marks += renderContourMarks(curCons(), asc, px);
+    else if (contour && isBase && cmds.length) marks += renderContourMarks(toNodes(cmds), asc, px, true);
     // przy podziale podpisy linii metrycznych tylko raz, po lewej stronie
     const gridSvg = state.showG ? renderGrid(box, px, asc, split ? !isBase : false) : '';
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.floor(box.w * px)}" height="${Math.floor(box.h * px)}" viewBox="${box.x.toFixed(1)} ${box.y.toFixed(1)} ${box.w.toFixed(1)} ${box.h.toFixed(1)}" role="img" aria-label="${isBase ? 'Glif bazowy' : 'Edytowany glif'}">`
@@ -626,8 +627,8 @@ function renderEdit(rp, counts){
   };
   const etyk = (gl) => (gl.unicode != null ? String.fromCodePoint(gl.unicode) : (gl.name || '#' + gl.index));
   const glyphSvg = split
-    ? `<div class="pane base"><span class="pane-lbl">Baza — ${etyk(bg)}</span><div class="pane-box">${pane(bg, true)}</div></div>`
-      + `<div class="pane"><span class="pane-lbl">Edytujesz — ${etyk(g)}</span><div class="pane-box">${pane(g, false)}</div></div>`
+    ? `<div class="pane-wrap base"><span class="pane-lbl">Baza — ${etyk(bg)}</span><div class="pane base"><div class="pane-box">${pane(bg, true)}</div></div></div>`
+      + `<div class="pane-wrap"><span class="pane-lbl">Edytujesz — ${etyk(g)}</span><div class="pane"><div class="pane-box">${pane(g, false)}</div></div></div>`
     : pane(g, false);
   $('note').textContent = `${g.name || 'glif ' + g.index}, szerokość ${adv} j.`;
   return `<div class="edit-wrap"><div class="edit-main">${glyphSvg}</div><div class="edit-sample" style="height:${sampleH}px">${sampleSvg}</div></div>`;
@@ -1116,7 +1117,9 @@ function renderBase(){
   msg.textContent = 'Baza: glif ' + nazwa + '.';
   if (state.selBase.length === 1) {
     // zaznaczony węzeł po stronie bazy — można z niego skopiować ustawienie
-    const r = D.rows.find((q) => near(q.v, state.selBase[0]));
+    let r = D.rows.find((q) => near(q.v, state.selBase[0]));
+    // w trybie Kontur węzeł może nie być narożnikiem — wtedy niesie samo położenie
+    if (!r && state.vmode === 'contour') r = { v: state.selBase[0], n: null, t: 'off', samoPolozenie: true };
     $('baseNodeLbl').textContent = 'Zaznaczony węzeł w bazie';
     if (!r) { msg.textContent = 'Baza: glif ' + nazwa + '. Ten punkt nie jest narożnikiem.'; box.hidden = true; }
     else {
@@ -1148,21 +1151,30 @@ function renderBase(){
 function renderClip(){
   const c = state.clip, w = $('clipWrap');
   if (!c) { w.hidden = true; return; }
-  const eff = c.eff || (c.type === 'auto' ? 'out' : c.type);
+  const eff = c.type == null ? 'off' : (c.eff || (c.type === 'auto' ? 'out' : c.type));
   const el = $('clipRow');
   el.className = 'base-row m-' + eff;
   el.innerHTML = '<span class="dot"></span>';
   const pos = document.createElement('span'); pos.className = 'pos'; pos.textContent = 'schowek';
+  pos.title = 'położenie węzła w schowku';
   // „auto” znaczy „zostaw typ wykryty automatem” — dopisujemy, czym jest w praktyce
-  const nazwaTypu = c.type === 'auto' ? 'auto (' + (TYPE_PL[eff] || eff) + ')' : (TYPE_PL[c.type] || c.type);
+  const nazwaTypu = c.type == null ? 'samo położenie'
+    : (c.type === 'auto' ? 'auto (' + (TYPE_PL[eff] || eff) + ')' : (TYPE_PL[c.type] || c.type));
   const typ = document.createElement('span'); typ.textContent = nazwaTypu + (c.from ? ' z ' + c.from : '');
   const val = document.createElement('span'); val.className = 'val';
-  val.textContent = c.type === 'off' ? 'ostry' : amtLabel(c);
+  val.textContent = c.type == null ? '—' : (c.type === 'off' ? 'ostry' : amtLabel(c));
   el.append(pos, typ, val);
   const sel = state.sel.length;
+  $('basePaste').hidden = c.type == null;
   $('basePaste').disabled = !sel;
-  $('basePaste').title = sel ? '' : 'Zaznacz węzeł po prawej, żeby wkleić';
+  $('basePaste').title = sel ? 'Cmd/Ctrl + V' : 'Zaznacz węzeł po prawej, żeby wkleić';
   $('basePaste').textContent = sel > 1 ? 'Wklej do ' + sel + ' węzłów' : 'Wklej ustawienie';
+  const pp = $('basePastePos');
+  pp.hidden = c.x == null;
+  pp.disabled = sel !== 1;
+  pp.title = sel === 1 ? 'Przesuwa węzeł na ' + Math.round(c.x) + ', ' + Math.round(c.y) + ' (Cmd/Ctrl + Shift + V)'
+                       : 'Zaznacz dokładnie jeden węzeł po prawej';
+  if (c.x != null) pos.textContent = Math.round(c.x) + ', ' + Math.round(c.y);
   w.hidden = false;
 }
 function setBase(i){
@@ -1362,7 +1374,7 @@ function vectorSetXY(axis, v){
   const d = Math.round(v) - Math.round(n[axis]); if (!d) return;
   vectorNudge(axis === 'x' ? d : 0, axis === 'y' ? d : 0);
 }
-function renderContourMarks(cons, asc, px){
+function renderContourMarks(cons, asc, px, ro){
   let s = '';
   const r = 4.5 / px, hr = 3.6 / px, hit = 10 / px;
   const segD = (a, b) => (a.out || b.in)
@@ -1371,10 +1383,17 @@ function renderContourMarks(cons, asc, px){
   let outline = '';
   cons.forEach((C, ci) => C.nodes.forEach((a, i) => {
     const b = C.nodes[(i + 1) % C.nodes.length]; const d = segD(a, b);
-    outline += d; s += `<path class="v-seg" data-vs="${ci},${i}" d="${d}"/>`;
+    outline += d; if (!ro) s += `<path class="v-seg" data-vs="${ci},${i}" d="${d}"/>`;
   }));
   s = `<path class="v-outline" d="${outline}"/>` + s;
   cons.forEach((C, ci) => C.nodes.forEach((n, ni) => {
+    if (ro) {
+      // kontur bazy: tylko do oglądania i zaznaczania, bez przeciągania
+      const on = state.selBase.some((q) => near(q, n));
+      s += `<circle class="v-node${on ? ' on' : ''}" cx="${n.x}" cy="${asc - n.y}" r="${r.toFixed(2)}"/>`;
+      s += `<circle class="v-hit" data-base-node="${n.x.toFixed(2)},${n.y.toFixed(2)}" cx="${n.x}" cy="${asc - n.y}" r="${hit.toFixed(2)}"/>`;
+      return;
+    }
     const nodeOn = vSelected(ci, ni, 'node');
     const showH = nodeOn || vSelected(ci, ni, 'in') || vSelected(ci, ni, 'out');
     if (showH) for (const part of ['in', 'out']) if (n[part]) {
@@ -1546,12 +1565,14 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
     if (e.button !== 0 || e.target.closest('input,textarea,button,select,a')) return;
     const vp = e.target.closest('[data-vp]');
     if (vp && !state.spacePan) { vectorDown(e, vp.dataset.vp); return; }
+    // panel bazy jest tylko do oglądania i zaznaczania — sprawdzamy go przed trybem Kontur,
+    // bo tamta gałąź wychodzi wcześniej i zjadała te kliknięcia
+    const hitB0 = e.target.closest('[data-base-node]');
+    if (hitB0 && !state.spacePan) { const [x, y] = hitB0.dataset.baseNode.split(',').map(Number); selectBaseNode({ x, y }, e.shiftKey); return; }
     if (state.mode === 'font' && state.view === 'edit' && state.vmode === 'contour' && !state.spacePan) {
       if (!e.shiftKey && !e.target.closest('[data-vs]') && state.vsel.length) { state.vsel = []; state.sel = []; updatePanel(); schedule(); }
       return;
     }
-    const hitB = e.target.closest('[data-base-node]');
-    if (hitB) { const [x, y] = hitB.dataset.baseNode.split(',').map(Number); selectBaseNode({ x, y }, e.shiftKey); return; }
     const hit = e.target.closest('[data-node]');
     if (hit) { const [x, y] = hit.dataset.node.split(',').map(Number); selectNode({ x, y }, e.shiftKey); return; }
     // klik obok narożnika odznacza — bez tego zaznaczenie wisiało aż do Escape
@@ -1709,28 +1730,67 @@ function copyNode(){
   let r = null, src = null;
   if (state.selBase.length === 1) {
     const D = baseData(); if (!D) return false;
-    r = D.rows.find((q) => near(q.v, state.selBase[0])); src = D.bg;
+    r = D.rows.find((q) => near(q.v, state.selBase[0]));
+    // w trybie Kontur zaznaczony węzeł bazy często nie jest narożnikiem —
+    // wtedy nie ma ustawień zaokrąglenia, ale samo położenie da się przenieść
+    if (!r) r = { v: state.selBase[0], n: null, t: null };
+    src = D.bg;
   } else if (state.sel.length === 1) {
     const info = editInfo(), j = info.joints.find((q) => q.c && near(q.v, state.sel[0]));
     if (j) { r = { v: j.v, n: j.n || null, t: effType(j.n, j.c) }; src = editGlyph(); }
   }
   if (!r) return false;
+  if (r.t == null) {
+    state.clip = { type: null, x: r.v.x, y: r.v.y, from: glyphLab(src) };
+    updatePanel(); toast('Skopiowano samo położenie węzła');
+    return true;
+  }
   const n = r.n || { type: r.t, mode: 'rel', amt: 100, absorb: 'auto' };
   state.clip = { type: n.type === 'auto' ? r.t : n.type, mode: n.mode, amt: n.amt, absorb: n.absorb,
-                 eff: r.t, from: glyphLab(src) };
+                 eff: r.t, x: r.v.x, y: r.v.y, from: glyphLab(src) };
   updatePanel();
   toast('Skopiowano ustawienie' + (r.n ? '' : ' (wykryte automatem)'));
   return true;
 }
+// Przesuwa zaznaczony węzeł konturu na współrzędne ze schowka. Uchwyty krzywych
+// i korekty przypięte do tego miejsca jadą razem z nim.
+function pastePos(){
+  const c = state.clip;
+  if (!c || c.x == null || state.sel.length !== 1) return false;
+  const cons = toNodes(glyphCmds(editGlyph()));
+  let best = null, bd = Infinity;
+  cons.forEach((C, ci) => C.nodes.forEach((n, ni) => {
+    const d = Math.hypot(n.x - state.sel[0].x, n.y - state.sel[0].y);
+    if (d < bd) { bd = d; best = [ci, ni]; }
+  }));
+  if (!best || bd > tolN()) { toast('W tym miejscu nie ma węzła konturu'); return false; }
+  const n = cons[best[0]].nodes[best[1]];
+  const dx = c.x - n.x, dy = c.y - n.y;
+  if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) { toast('Węzeł już jest w tym miejscu'); return false; }
+  checkpoint(); hist.t = 0;
+  const stara = { x: n.x, y: n.y };
+  n.x = c.x; n.y = c.y;
+  if (n.in) { n.in.x += dx; n.in.y += dy; }
+  if (n.out) { n.out.x += dx; n.out.y += dy; }
+  const E = state.ovr['g' + state.edit];
+  if (E) for (const arr of [E.nodes || [], E.force || []]) for (const q of arr)
+    if (near(q, stara)) { q.x += dx; q.y += dy; }
+  writeCons(cons);
+  state.sel = [{ x: c.x, y: c.y }];
+  updatePanel(); schedule(); autosave();
+  toast('Przesunięto węzeł o ' + Math.round(dx) + ', ' + Math.round(dy) + ' j.');
+  return true;
+}
 function pasteNode(){
   const c = state.clip;
-  if (!c || !state.sel.length) return false;
+  if (!c || c.type == null || !state.sel.length) return false;
   setNodes((n) => { n.type = c.type; n.mode = c.mode; n.amt = c.amt; n.absorb = c.absorb; });
   toast(state.sel.length > 1 ? 'Wklejono do ' + state.sel.length + ' węzłów' : 'Wklejono ustawienie');
   return true;
 }
 $('baseCopy').addEventListener('click', copyNode);
 $('basePaste').addEventListener('click', pasteNode);
+$('basePastePos').addEventListener('click', pastePos);
 $('clipClear').addEventListener('click', () => { state.clip = null; updatePanel(); });
 $('baseClear').addEventListener('click', () => setBase(null));
 $('gPrev').addEventListener('click', () => stepGlyph(-1));
@@ -1761,7 +1821,9 @@ document.addEventListener('keydown', e => {
   // Cmd/Ctrl + C kopiuje ustawienie zaznaczonego narożnika, Cmd/Ctrl + V je wkleja
   if (mod && k === 'c' && !typing && state.mode === 'font' && state.view === 'edit'
       && (state.selBase.length === 1 || state.sel.length === 1)) { if (copyNode()) { e.preventDefault(); return; } }
-  if (mod && k === 'v' && !typing && state.mode === 'font' && state.view === 'edit'
+  if (mod && e.shiftKey && k === 'v' && !typing && state.mode === 'font' && state.view === 'edit'
+      && state.sel.length === 1) { if (pastePos()) { e.preventDefault(); return; } }
+  if (mod && !e.shiftKey && k === 'v' && !typing && state.mode === 'font' && state.view === 'edit'
       && state.sel.length) { if (pasteNode()) { e.preventDefault(); return; } }
   if (state.mode !== 'font' || state.view !== 'edit' || typing) return;
   if (e.key === ' ' && !e.repeat) { e.preventDefault(); state.spacePan = true; document.querySelector('.stage').classList.add('space'); return; }

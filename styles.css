@@ -227,11 +227,13 @@ details[open] summary{margin-bottom:14px}
 
 /* podział widoku edycji: po lewej baza, po prawej edytowany glif */
 .edit-main{gap:14px}
-.pane{flex:1 1 0; min-width:0; display:flex; flex-direction:column; gap:6px; overflow:auto; overscroll-behavior:contain}
-.pane.base{border-right:1px solid var(--line); padding-right:14px}
-.pane-lbl{flex:none; position:sticky; top:0; z-index:1; background:var(--sheet);
-  font-family:var(--mono); font-size:11.5px; color:var(--muted); padding:2px 0 4px}
-.pane.base .pane-lbl{color:var(--faint)}
+.pane-wrap{flex:1 1 0; min-width:0; position:relative; display:flex}
+.pane-wrap.base{border-right:1px solid var(--line); padding-right:14px}
+.pane{flex:1 1 0; min-width:0; display:flex; overflow:auto; overscroll-behavior:contain}
+.pane-lbl{position:absolute; top:4px; left:6px; z-index:2; pointer-events:none;
+  background:var(--sheet); padding:2px 7px; border-radius:6px;
+  font-family:var(--mono); font-size:11.5px; color:var(--muted)}
+.pane-wrap.base .pane-lbl{color:var(--faint)}
 .pane-box{margin:auto}
 .pane.base .glyph{opacity:.55}
 
