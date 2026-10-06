@@ -369,8 +369,16 @@ section h2{margin:0 0 10px; font-size:12px; letter-spacing:.01em}
 .app.rail-closed .bar{padding-left:54px}
 .rail-show:hover{color:var(--ink); border-color:var(--ink)}
 /* rząd przełączników podglądu w panelu */
-.view-row{display:flex; align-items:center; gap:3px; padding:0 0 14px; border-bottom:1px solid var(--line); margin-bottom:4px}
-.view-row-lbl{margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--faint)}
+.view-row{padding:0 0 14px; border-bottom:1px solid var(--line); margin-bottom:4px}
+.view-row-lbl{display:block; margin-bottom:7px; font-family:var(--mono); font-size:11px; color:var(--faint)}
+.view-row-btns{display:flex; gap:8px}
+/* Ikona z podpisem: sama ikona nie mówi, co przełącza, więc etykieta jest
+   zawsze widoczna, nie tylko w tooltipie. */
+.iconlbl{display:flex; flex-direction:column; align-items:center; gap:4px; min-width:54px}
+.iconlbl em{font-style:normal; font-family:var(--mono); font-size:10px; line-height:1.1; color:var(--faint); text-align:center}
+.iconlbl .tb-btn[aria-pressed="true"] + em{color:var(--ink)}
+/* Gdy app chowa sam przycisk (np. siatka poza trybem edycji), znika z nim podpis. */
+.iconlbl:has(> .tb-btn[hidden]){display:none}
 
 .tb-btn.wide{width:auto; gap:6px; padding:0 10px; display:flex; font-size:12.5px; color:var(--ink)}
 .tb-btn.wide svg{flex:none}

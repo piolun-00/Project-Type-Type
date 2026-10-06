@@ -40,10 +40,12 @@
       <button class="tb-btn" id="railToggle" title="Schowaj panel" aria-label="Schowaj panel"><svg class="ic"><use href="#ic-panel"/></svg></button>
     </div>
     <div class="view-row">
-      <button class="tb-btn" id="tgG" aria-pressed="true" title="Siatka" aria-label="Siatka"><svg class="ic"><use href="#ic-grid"/></svg></button>
-      <button class="tb-btn" id="tgC" aria-pressed="true" title="Znaczniki narożników" aria-label="Znaczniki"><svg class="ic"><use href="#ic-marks"/></svg></button>
-      <button class="tb-btn" id="tgO" aria-pressed="false" title="Oryginał pod spodem" aria-label="Oryginał"><svg class="ic"><use href="#ic-orig"/></svg></button>
       <span class="view-row-lbl">Podgląd</span>
+      <div class="view-row-btns">
+        <span class="iconlbl"><button class="tb-btn" id="tgG" aria-pressed="true" title="Siatka pomocnicza i linie metryczne" aria-label="Siatka"><svg class="ic"><use href="#ic-grid"/></svg></button><em>Siatka</em></span>
+        <span class="iconlbl"><button class="tb-btn" id="tgC" aria-pressed="true" title="Kolorowe znaczniki wykrytych narożników" aria-label="Znaczniki narożników"><svg class="ic"><use href="#ic-marks"/></svg></button><em>Narożniki</em></span>
+        <span class="iconlbl"><button class="tb-btn" id="tgO" aria-pressed="false" title="Oryginalny kształt pod spodem" aria-label="Oryginał pod spodem"><svg class="ic"><use href="#ic-orig"/></svg></button><em>Oryginał</em></span>
+      </div>
     </div>
     <section id="nodePanel" hidden>
       <h2 id="npTitle">Glif</h2>
