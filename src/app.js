@@ -16,7 +16,7 @@ const state = {
   ref: 100, strokeAuto: 8,
   view: 'glyphs',
   showT: false,     // pasek z podglądem tekstu pod kadrem
-  pen: false,       // pióro: klik na linii dodaje węzeł, Option + klik w węzeł usuwa
+  tool: 'select',   // narzędzie w trybie Kontur: 'select' (V) albo 'pen' (P)
   text: 'Zażółć gęślą jaźń\nĄĆĘŁŃÓŚŹŻ Hamburgefonstiv 0123',
   union: true,
   size: 110,
@@ -1614,7 +1614,7 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
     const vp = e.target.closest('[data-vp]');
     if (vp && !state.spacePan) { vectorDown(e, vp.dataset.vp); return; }
     // pióro: pojedynczy klik na linii wstawia węzeł (bez pióra trzeba dwukliku)
-    if (state.pen && state.vmode === 'contour' && !state.spacePan) {
+    if (state.tool === 'pen' && state.vmode === 'contour' && !state.spacePan) {
       const seg = e.target.closest('[data-vs]');
       if (seg) { const [ci, si] = seg.dataset.vs.split(',').map(Number), p = toFont(e); if (p) vectorInsert(ci, si, p); return; }
     }
@@ -1702,20 +1702,27 @@ $('railToggle').addEventListener('click', () => setRail(false));
 $('railShow').addEventListener('click', () => setRail(true));
 try { if (localStorage.getItem('type-type:rail') === '0') setRail(false); } catch(e) {}
 $('tbReset').addEventListener('click', () => { for (const k of ['end','out','in']) setParam(k, 0); });
-$('tgPen').addEventListener('click', () => {
-  state.pen = !state.pen;
-  $('tgPen').setAttribute('aria-pressed', state.pen);
-  document.querySelector('.stage').classList.toggle('pen', state.pen);
-  schedule();
-});
-// Ikona pokazuje, co zrobi kliknięcie: samo pióro dodaje, pióro z minusem odejmuje.
-function penIcon(alt){
-  const u = document.getElementById('penIcon');
-  if (u) u.setAttribute('href', alt ? '#ic-pen-minus' : '#ic-pen');
+function setTool(t){
+  state.tool = t;
+  $('toolSeg').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.t === t));
+  applyCursor();
 }
-document.addEventListener('keydown', (e) => { if (e.altKey && state.pen) penIcon(true); });
-document.addEventListener('keyup', (e) => { if (!e.altKey) penIcon(false); });
-window.addEventListener('blur', () => penIcon(false));
+// Kursor i ikona pokazują, co zrobi kliknięcie: samo pióro dodaje,
+// pióro z minusem odejmuje.
+function applyCursor(alt){
+  const st = document.querySelector('.stage');
+  const piorem = state.mode === 'font' && state.view === 'edit' && state.vmode === 'contour' && state.tool === 'pen';
+  const zazn = state.mode === 'font' && state.view === 'edit' && state.vmode === 'contour' && !piorem;
+  st.classList.toggle('tool-pen', piorem);
+  st.classList.toggle('tool-select', zazn);
+  if (alt !== undefined) st.classList.toggle('alt', !!alt && piorem);
+  const u = document.getElementById('penIcon');
+  if (u) u.setAttribute('href', (alt && piorem) ? '#ic-pen-minus' : '#ic-pen');
+}
+$('toolSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setTool(b.dataset.t); });
+document.addEventListener('keydown', (e) => { if (e.altKey) applyCursor(true); });
+document.addEventListener('keyup', (e) => { if (!e.altKey) applyCursor(false); });
+window.addEventListener('blur', () => applyCursor(false));
 $('tgT').addEventListener('click', () => {
   state.showT = !state.showT;
   $('tgT').setAttribute('aria-pressed', state.showT);
@@ -1786,10 +1793,11 @@ function syncToolbar(){
   $('viewSeg').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x.dataset.v === state.view));
   const wEdycji = state.mode === 'font' && state.view === 'edit';
   $('vmodeSeg').hidden = !wEdycji; $('tbSepMode').hidden = !wEdycji;
-  const piorem = wEdycji && state.vmode === 'contour';
-  $('tgPen').hidden = !piorem;
-  if (!piorem && state.pen) { state.pen = false; $('tgPen').setAttribute('aria-pressed', false); }
-  document.querySelector('.stage').classList.toggle('pen', state.pen);
+  const wKonturze = wEdycji && state.vmode === 'contour';
+  $('toolSeg').hidden = !wKonturze;
+  if (!wKonturze) state.tool = 'select';            // poza konturem zostaje zaznaczanie
+  $('toolSeg').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.t === state.tool));
+  applyCursor();
   $('viewSeg').hidden = state.mode !== 'font';
   });
   for (const [b, c] of TB) $(b).setAttribute('aria-pressed', $(c).checked);
@@ -2069,6 +2077,9 @@ document.addEventListener('keydown', e => {
   if (state.mode !== 'font' || state.view !== 'edit' || typing) return;
   if (e.key === ' ' && !e.repeat) { e.preventDefault(); state.spacePan = true; document.querySelector('.stage').classList.add('space'); return; }
   if (e.key === ' ') { e.preventDefault(); return; }
+  if (!mod && state.vmode === 'contour' && (k === 'v' || k === 'p')) {
+    e.preventDefault(); setTool(k === 'v' ? 'select' : 'pen'); return;
+  }
   if (!mod && (e.key === '+' || e.key === '=')) { e.preventDefault(); zoomTo(curZoom() * 1.25); return; }
   if (!mod && (e.key === '-' || e.key === '_')) { e.preventDefault(); zoomTo(curZoom() / 1.25); return; }
   if (!mod && e.key === '0') { e.preventDefault(); zoomTo(100); return; }
