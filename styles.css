@@ -294,3 +294,13 @@ section h2{margin:0 0 10px; font-size:12px; letter-spacing:.01em}
 .tb-size{display:flex; align-items:center; gap:7px; font-family:var(--mono); font-size:11.5px; color:var(--muted); padding-right:4px}
 .tb-size input[type=range]{width:86px}
 @media (max-width: 860px){ .toolbar{bottom:calc(var(--sampleH, 0px) + 12px)} }
+
+/* sekcje zwijane: Eksport i Plik — robi się je raz, nie muszą zajmować miejsca */
+.fold > summary{list-style:none; cursor:pointer; font-size:12px; font-weight:600; color:var(--ink);
+  display:flex; align-items:center; justify-content:space-between; padding:2px 0}
+.fold > summary::-webkit-details-marker{display:none}
+.fold > summary::after{content:'+'; color:var(--muted); font-family:var(--mono)}
+.fold[open] > summary::after{content:'−'}
+.fold > summary + *{margin-top:10px}
+/* pusty stan panelu właściwości */
+.empty-note{color:var(--muted); font-size:12.5px; margin:4px 0 0}
