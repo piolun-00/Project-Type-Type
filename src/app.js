@@ -16,6 +16,7 @@ const state = {
   ref: 100, strokeAuto: 8,
   view: 'glyphs',
   showT: false,     // pasek z podglądem tekstu pod kadrem
+  pen: false,       // pióro: klik na linii dodaje węzeł, Option + klik w węzeł usuwa
   text: 'Zażółć gęślą jaźń\nĄĆĘŁŃÓŚŹŻ Hamburgefonstiv 0123',
   union: true,
   size: 110,
@@ -1017,7 +1018,6 @@ function updatePanel(){
   $('npCtrls').hidden = !corners.length;
   if (corners.length) {
     const n = corners[0].n || NODE_DEF, c = corners[0].c;
-    pressSeg('npType', n.type, v => v === 'end' && !corners.every(j => j.c.endLen > 0));
     pressSeg('npMode', n.mode);
     pressSeg('npAbsorb', n.absorb);
     const off = corners.every(j => effType(j.n || NODE_DEF, j.c) === 'off');
@@ -1613,6 +1613,11 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
     if (e.button !== 0 || e.target.closest('input,textarea,button,select,a')) return;
     const vp = e.target.closest('[data-vp]');
     if (vp && !state.spacePan) { vectorDown(e, vp.dataset.vp); return; }
+    // pióro: pojedynczy klik na linii wstawia węzeł (bez pióra trzeba dwukliku)
+    if (state.pen && state.vmode === 'contour' && !state.spacePan) {
+      const seg = e.target.closest('[data-vs]');
+      if (seg) { const [ci, si] = seg.dataset.vs.split(',').map(Number), p = toFont(e); if (p) vectorInsert(ci, si, p); return; }
+    }
     // panel bazy jest tylko do oglądania i zaznaczania — sprawdzamy go przed trybem Kontur,
     // bo tamta gałąź wychodzi wcześniej i zjadała te kliknięcia
     const hitB0 = e.target.closest('[data-base-node]');
@@ -1697,6 +1702,20 @@ $('railToggle').addEventListener('click', () => setRail(false));
 $('railShow').addEventListener('click', () => setRail(true));
 try { if (localStorage.getItem('type-type:rail') === '0') setRail(false); } catch(e) {}
 $('tbReset').addEventListener('click', () => { for (const k of ['end','out','in']) setParam(k, 0); });
+$('tgPen').addEventListener('click', () => {
+  state.pen = !state.pen;
+  $('tgPen').setAttribute('aria-pressed', state.pen);
+  document.querySelector('.stage').classList.toggle('pen', state.pen);
+  schedule();
+});
+// Ikona pokazuje, co zrobi kliknięcie: samo pióro dodaje, pióro z minusem odejmuje.
+function penIcon(alt){
+  const u = document.getElementById('penIcon');
+  if (u) u.setAttribute('href', alt ? '#ic-pen-minus' : '#ic-pen');
+}
+document.addEventListener('keydown', (e) => { if (e.altKey && state.pen) penIcon(true); });
+document.addEventListener('keyup', (e) => { if (!e.altKey) penIcon(false); });
+window.addEventListener('blur', () => penIcon(false));
 $('tgT').addEventListener('click', () => {
   state.showT = !state.showT;
   $('tgT').setAttribute('aria-pressed', state.showT);
@@ -1767,6 +1786,10 @@ function syncToolbar(){
   $('viewSeg').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x.dataset.v === state.view));
   const wEdycji = state.mode === 'font' && state.view === 'edit';
   $('vmodeSeg').hidden = !wEdycji; $('tbSepMode').hidden = !wEdycji;
+  const piorem = wEdycji && state.vmode === 'contour';
+  $('tgPen').hidden = !piorem;
+  if (!piorem && state.pen) { state.pen = false; $('tgPen').setAttribute('aria-pressed', false); }
+  document.querySelector('.stage').classList.toggle('pen', state.pen);
   $('viewSeg').hidden = state.mode !== 'font';
   });
   for (const [b, c] of TB) $(b).setAttribute('aria-pressed', $(c).checked);
@@ -1836,7 +1859,6 @@ $('expFont').addEventListener('click', exportFont);
 $('expVF').addEventListener('click', exportVF);
 
 // panel korekt
-$('npType').addEventListener('click', e => { const b = e.target.closest('button'); if (!b || b.disabled) return; setNodes(n => { n.type = b.dataset.v; }); });
 $('npAbsorb').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; setNodes(n => { n.absorb = b.dataset.v; }); });
 $('npMode').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
