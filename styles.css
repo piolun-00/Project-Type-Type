@@ -117,12 +117,13 @@ details[open] summary{margin-bottom:14px}
 .size input[type=range]::-moz-range-track{height:4px; border:0; background:var(--line)}
 .size input[type=range]::-webkit-slider-thumb{width:14px; height:14px; margin-top:-5px; border-color:var(--ink)}
 
-.stage{flex:1; overflow:auto; padding:28px; cursor:grab; touch-action:none; overscroll-behavior:contain}
+.stage{flex:1; overflow:auto; padding:0; cursor:grab; touch-action:none; overscroll-behavior:contain;
+  user-select:none; -webkit-user-select:none}
 .stage.dragging{cursor:grabbing; user-select:none}
-.sheet{background:var(--sheet); border-radius:4px; min-height:100%; min-width:100%; width:max-content; padding:36px; display:flex}
+.sheet{background:var(--sheet); border-radius:0; min-height:100%; min-width:100%; width:max-content; padding:28px; display:flex}
 .sheet svg{display:block; flex:none; margin:auto}
 .sheet.boot-screen{width:100%; min-width:0; container-type:inline-size}
-.boot{margin:auto; width:100%; display:flex; flex-direction:column; justify-content:center;
+.boot{margin:0; align-self:flex-start; width:100%; display:flex; flex-direction:column;
   font-weight:700; letter-spacing:-.035em; line-height:.92; color:var(--ink);
   font-size:15cqw; white-space:nowrap}
 .boot-svg{margin:auto; display:block; width:100%; height:auto}
@@ -139,14 +140,14 @@ details[open] summary{margin-bottom:14px}
 .edit-sample-label{font-size:12.5px; color:var(--muted); align-self:flex-start; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%}
 .edit-sample-label b{color:var(--ink); font-weight:600}
 .cell-hit, [data-gi]{cursor:pointer}
-.sheet.editing{width:100%; height:100%; min-height:0; padding:0; overflow:hidden; cursor:default; display:block}
-.stage.edit-mode{cursor:default; overflow:hidden}
+.sheet.editing{width:100%; height:100%; min-height:0; padding:0; overflow:hidden; cursor:default; display:block; border-radius:0}
+.stage.edit-mode{cursor:default; overflow:hidden; padding:0}
 .edit-wrap{display:flex; flex-direction:column; height:100%; position:relative}
 .edit-main{flex:1; min-height:0; display:flex; overflow:auto; overscroll-behavior:contain}
 .edit-main > svg{flex:none; display:block}
 .stage.edit-mode.space .edit-main{cursor:grab}
 .stage.edit-mode.space.dragging .edit-main{cursor:grabbing}
-.edit-sample{flex:none; box-sizing:border-box; border-top:1px solid var(--line); padding:12px 20px 14px; display:flex; flex-direction:column; align-items:flex-start; overflow:hidden}
+.edit-sample{flex:none; box-sizing:border-box; border-top:1px solid var(--line); padding:7px 18px 9px; display:flex; flex-direction:column; align-items:flex-start; overflow:hidden}
 .edit-sample svg{max-width:100%; height:auto}
 .edit-tip{position:absolute; top:12px; left:14px; right:14px; font-size:13px; color:var(--muted); pointer-events:none; z-index:2}
 .edit-tip span{display:inline-block; background:color-mix(in srgb, var(--sheet) 92%, transparent); padding:5px 9px; border-radius:7px; box-shadow:0 0 0 1px var(--line)}
@@ -166,7 +167,7 @@ details[open] summary{margin-bottom:14px}
 .grid-major{stroke:var(--line); stroke-width:1; vector-effect:non-scaling-stroke}
 .metric{stroke:var(--end); stroke-width:1; vector-effect:non-scaling-stroke; opacity:.55; stroke-dasharray:4 3}
 .metric.baseline{stroke:var(--ink); opacity:.75; stroke-width:1.25; stroke-dasharray:6 4}
-.metric-label{fill:var(--end); opacity:.8; font-family:inherit}
+.metric-label{fill:var(--end); opacity:.8; font-family:inherit; pointer-events:none; user-select:none; -webkit-user-select:none}
 .guide{fill:none; stroke:var(--line); stroke-width:1; vector-effect:non-scaling-stroke}
 .badge{fill:var(--ink)}
 .cell-hit{fill:transparent}
@@ -199,8 +200,7 @@ details[open] summary{margin-bottom:14px}
   .app{grid-template-columns:1fr; height:auto}
   .rail{border-right:0; border-bottom:1px solid var(--line); overflow:visible}
   .main{min-height:80vh}
-  .stage{padding:14px}
-  .sheet{padding:18px}
+  .sheet{padding:16px}
 }
 @media (prefers-reduced-motion: reduce){ *{transition:none!important} }
 
@@ -209,3 +209,49 @@ details[open] summary{margin-bottom:14px}
 .num, #strokeOv, #vX, #vY, #note{ font-family:var(--mono); }
 .hint, .foot, .count, .file-info, .edit-sample-label, .gname{ letter-spacing:-.005em; }
 .num, #strokeOv, #vX, #vY{ font-variant-numeric:tabular-nums; }
+
+/* sekcja „Baza” — wybór glifu źródłowego i podgląd jego korekt */
+.np-h3{margin:18px 0 8px; font-size:13px; font-weight:600; border-top:1px solid var(--line); padding-top:14px}
+.base-pick{display:flex; align-items:center; gap:8px; margin-bottom:6px}
+.base-pick input{width:64px; text-align:center; padding:7px 6px; border:0; border-radius:8px; background:var(--field); font-size:15px}
+.base-list{display:flex; flex-direction:column; gap:3px; max-height:230px; overflow:auto}
+.base-row{display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:7px; background:var(--field);
+  font-family:var(--mono); font-size:11.5px; color:var(--muted); text-align:left; border:0; width:100%;
+  box-sizing:border-box; min-width:0; overflow:hidden}
+.base-row > span{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.base-row .dot{width:8px; height:8px; border-radius:50%; flex:none}
+.base-row .pos{color:var(--ink); font-variant-numeric:tabular-nums; flex:none; width:68px}
+.base-row .val{margin-left:auto; flex:none; max-width:52%}
+.base-row.m-end .dot{background:var(--end)} .base-row.m-out .dot{background:var(--out)}
+.base-row.m-in .dot{background:var(--in)} .base-row.m-off .dot{background:var(--faint)}
+
+/* podział widoku edycji: po lewej baza, po prawej edytowany glif */
+.edit-main{gap:14px}
+.pane-wrap{flex:1 1 0; min-width:0; position:relative; display:flex}
+.pane-wrap.base{border-right:1px solid var(--line); padding-right:14px}
+.pane{flex:1 1 0; min-width:0; display:flex; overflow:auto; overscroll-behavior:contain}
+.pane-lbl{position:absolute; top:4px; left:6px; z-index:2; pointer-events:none;
+  background:var(--sheet); padding:2px 7px; border-radius:6px;
+  font-family:var(--mono); font-size:11.5px; color:var(--muted)}
+.pane-wrap.base .pane-lbl{color:var(--faint)}
+.pane-box{margin:auto}
+.pane.base .glyph{opacity:.55}
+
+#clipWrap{margin-top:12px; border-top:1px dashed var(--line); padding-top:12px}
+.m-echo{fill:none; stroke:var(--focus); stroke-width:1.5; vector-effect:non-scaling-stroke; stroke-dasharray:3 3; opacity:.8}
+
+.sheet svg text{pointer-events:none; user-select:none; -webkit-user-select:none}
+
+/* okno wgrywania pliku */
+.modal{position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; padding:20px}
+.modal-bg{position:absolute; inset:0; background:rgba(16,18,22,.45)}
+.modal-box{position:relative; width:min(460px,100%); background:var(--rail); border-radius:14px;
+  padding:20px; box-shadow:0 18px 50px rgba(0,0,0,.22); max-height:90vh; overflow:auto}
+.modal-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px}
+.modal-head h2{margin:0; font-size:15px; font-weight:600}
+.modal .drop{margin-bottom:0}
+.modal .license{margin-top:12px}
+.modal .msg:empty{display:none}
+
+.picked{margin:0 0 10px; font-size:13px; color:var(--muted)}
+.picked b{color:var(--ink); font-weight:600}

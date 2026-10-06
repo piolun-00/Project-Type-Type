@@ -60,18 +60,38 @@
       <div class="msg" id="npOrphans"></div>
       <button class="linkbtn" id="npResetGlyph">Przywróć cały glif</button>
       </div>
+      <div id="baseWrap" hidden>
+        <h3 class="np-h3">Baza glifu</h3>
+        <p class="hint" id="baseHint" style="margin-top:0">Wskaż glif, z którego czerpiesz. Dla znaków z akcentem podpowiadam literę bazową. Kopiowanie i wklejanie działa też przez Cmd/Ctrl + C oraz Cmd/Ctrl + V.</p>
+        <div class="base-pick">
+          <input id="baseChar" type="text" maxlength="4" spellcheck="false" placeholder="znak" aria-label="Glif bazowy">
+          <button class="btn" id="baseSuggest" hidden></button>
+          <button class="linkbtn" id="baseClear" hidden>Wyczyść</button>
+        </div>
+        <div class="msg" id="baseMsg"></div>
+        <div id="baseNodeWrap" hidden>
+          <span class="lbl" style="display:block; font-size:12.5px; color:var(--muted); margin:10px 0 6px" id="baseNodeLbl">Zaznaczony węzeł</span>
+          <div class="base-row" id="baseNode"></div>
+          <div class="btn-row" style="margin-top:8px">
+            <button class="btn" id="baseCopy" hidden>Kopiuj ustawienie</button>
+            <button class="btn" id="baseApply" hidden>Przenieś z bazy tutaj</button>
+          </div>
+        </div>
+        <div id="clipWrap" hidden>
+          <div class="base-row" id="clipRow"></div>
+          <div class="btn-row" style="margin-top:8px">
+            <button class="btn primary" id="basePaste">Wklej ustawienie</button>
+            <button class="btn" id="basePastePos">Wklej geometrię</button>
+            <button class="linkbtn" id="clipClear">Opróżnij schowek</button>
+          </div>
+        </div>
+      </div>
       <div id="npListWrap" style="margin-top:14px" hidden><span class="lbl" style="display:block; font-size:12.5px; color:var(--muted); margin-bottom:6px">Glify z korektami</span><div class="chips" id="npList"></div></div>
     </section>
 
 
     <section>
       <h2>Plik</h2>
-      <div class="drop locked" id="drop" tabindex="0" role="button" aria-disabled="true">
-        <strong>Wgraj font lub SVG</strong>
-        <span id="dropHint">Najpierw zaznacz potwierdzenie licencji.</span>
-      </div>
-      <label class="license"><input type="checkbox" id="lic"><span>Mam licencję lub prawa do modyfikacji pliku, który wgrywam.</span></label>
-      <input type="file" id="file" accept=".ttf,.otf,.woff,.svg,font/ttf,font/otf,font/woff,image/svg+xml" hidden>
       <div class="file-info" id="fileInfo">Teraz: <b>kształty demo</b></div>
       <div class="msg" id="msg"></div>
       <div class="restore" id="restore" hidden></div>
@@ -166,6 +186,7 @@
 
   <main class="main">
     <div class="bar">
+      <button class="btn" id="openFile">Dodaj font</button>
       <div class="seg" id="viewSeg" role="group" aria-label="Widok">
         <button data-v="text" aria-pressed="true">Tekst</button>
         <button data-v="glyphs" aria-pressed="false">Wszystkie glify</button>
@@ -193,6 +214,30 @@
       <span id="note"></span>
     </div>
   </main>
+</div>
+<div class="modal" id="fileModal" hidden>
+  <div class="modal-bg" id="fileModalBg"></div>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="fileModalTitle">
+    <div class="modal-head">
+      <h2 id="fileModalTitle">Dodaj font lub SVG</h2>
+      <button class="iconbtn" id="fileModalClose" aria-label="Zamknij">×</button>
+    </div>
+    <div class="drop ready" id="drop" tabindex="0" role="button">
+      <strong>Wgraj font lub SVG</strong>
+      <span id="dropHint">Przeciągnij tutaj albo kliknij. TTF, OTF, WOFF, SVG.</span>
+    </div>
+    <input type="file" id="file" accept=".ttf,.otf,.woff,.svg,font/ttf,font/otf,font/woff,image/svg+xml" hidden>
+    <div id="licStep" hidden>
+      <p class="picked">Wybrany plik: <b id="pickedName"></b></p>
+      <label class="license"><input type="checkbox" id="lic"><span>Mam licencję lub prawa do modyfikacji tego pliku.</span></label>
+      <div class="btn-row" style="margin-top:12px">
+        <button class="btn primary" id="licOk" disabled>Wgraj</button>
+        <button class="linkbtn" id="licCancel">Wybierz inny</button>
+      </div>
+    </div>
+    <div class="msg" id="dropMsg"></div>
+    <p class="hint">Pliki zostają w twojej przeglądarce — nic nie jest wysyłane.</p>
+  </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 

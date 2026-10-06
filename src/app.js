@@ -29,6 +29,9 @@ const state = {
   edit: 0,
   sel: [],
   ovr: {},          // klucz glifu → { scale, nodes:[{x,y,type,mode,amt,absorb}], force:[{x,y}] }
+  base: {},         // indeks edytowanego glifu → indeks glifu bazowego
+  selBase: [],      // zaznaczenie po stronie bazy (osobne od state.sel)
+  clip: null,       // schowek: { type, mode, amt, absorb, from }
   hash: '',
   showC: true, showO: false,
   booting: true,     // zanim wczytamy domyślny font, nie rysujemy nic migotliwego
@@ -350,7 +353,7 @@ const LSKEY = () => 'type-type:' + state.hash;
 const LSKEY_OLD = () => 'szlifiernia:' + state.hash;
 function settingsObj(){
   return { app:'Type Type', version:1, source:{ name: state.mode === 'font' ? state.fontFile : (state.svgName || ''), hash: state.hash },
-    p: state.p, ovr: state.ovr, union: state.union, strokeOv: state.strokeOv, famName: $('famName').value, text: state.text, saved: Date.now() };
+    p: state.p, ovr: state.ovr, base: state.base, union: state.union, strokeOv: state.strokeOv, famName: $('famName').value, text: state.text, saved: Date.now() };
 }
 function autosave(){
   if (!state.hash || state.source === 'demo') return;
@@ -361,6 +364,7 @@ function applySettings(o, fromFile){
   checkpoint(); hist.t = 0;
   state.p = Object.assign({}, DEF, o.p || {});
   state.ovr = o.ovr && typeof o.ovr === 'object' ? o.ovr : {};
+  state.base = o.base && typeof o.base === 'object' ? o.base : {};
   if (typeof o.union === 'boolean') { state.union = o.union; $('union').checked = o.union; }
   state.strokeOv = o.strokeOv > 0 ? o.strokeOv : null; $('strokeOv').value = state.strokeOv || '';
   if (o.famName && state.mode === 'font') $('famName').value = o.famName;
@@ -431,7 +435,7 @@ function glyphItems(){
   // siatka glifów
   const max = Math.min(f.glyphs.length, 800);
   // kolumny liczone od bazowej wielkości komórki: powiększenie nie przestawia siatki, tylko ją skaluje
-  const cellPx = state.gzoom, avail = Math.max(300, $('sheet').parentElement.clientWidth - 128);
+  const cellPx = state.gzoom, avail = Math.max(300, $('sheet').parentElement.clientWidth - 56);
   const cols = Math.max(4, Math.floor(avail / GRID_BASE));   // stała liczba kolumn: powiększenie tylko skaluje
   const cell = upm * 1.25;
   for (let i=0;i<max;i++){
@@ -448,6 +452,19 @@ function glyphItems(){
 
 /* ================= widok edycji glifu ================= */
 function editGlyph(){ return state.font.glyphs.get(state.edit) }
+// Szerokość, od której liczymy stały kadr. Nie bierzemy najszerszego glifu w foncie,
+// bo jeden wyjątek (w ABC Areal 1500 j. przy literze A równej 718) rozpycha ramkę
+// wszystkim pozostałym. 95. percentyl pomija takie wyskoki.
+function widthRef(){
+  const f = state.font;
+  if (widthRef.forId === state.loadId) return widthRef.v;
+  const w = [];
+  for (let i = 0; i < f.glyphs.length; i++) { const a = f.glyphs.get(i).advanceWidth; if (a > 0) w.push(a); }
+  w.sort((a, b) => a - b);
+  widthRef.v = Math.max(f.unitsPerEm, w.length ? w[Math.floor(w.length * 0.95)] : f.unitsPerEm);
+  widthRef.forId = state.loadId;
+  return widthRef.v;
+}
 const PANGRAMS = ['Pchnąć w tę łódź jeża lub ośm skrzyń fig', 'Zażółć gęślą jaźń', 'Mężny bądź, chroń pułk twój i sześć flag', 'The quick brown fox jumps over the lazy dog', 'Hamburgefonstiv 0123456789'];
 function sampleLines(g){
   const c = g.unicode != null ? String.fromCodePoint(g.unicode) : null;
@@ -476,7 +493,7 @@ function fontMetrics(){
   const cap = os2.sCapHeight > 0 ? os2.sCapHeight : bbY('H', true);
   return { asc: f.ascender, desc: f.descender, xh, cap };
 }
-function renderGrid(box, px, asc){
+function renderGrid(box, px, asc, bezPodpisow){
   const steps = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000];
   const minor = steps.find(s => s * px >= 9) || 1000;
   const major = minor * 5 * px >= 45 ? minor * 5 : minor * 10;
@@ -485,7 +502,7 @@ function renderGrid(box, px, asc){
   for (let x = Math.ceil(x0 / minor) * minor; x <= x1; x += minor) (x % major === 0 ? (majorD += `M${x} ${box.y}V${box.y + box.h}`) : (minorD += `M${x} ${box.y}V${box.y + box.h}`));
   for (let y = Math.ceil(fy0 / minor) * minor; y <= fy1; y += minor) { const sy = asc - y; (y % major === 0 ? (majorD += `M${x0} ${sy}H${x1}`) : (minorD += `M${x0} ${sy}H${x1}`)); }
   let s = `<path class="grid-minor" d="${minorD}"/><path class="grid-major" d="${majorD}"/>`;
-  // linie metryczne z podpisami
+  // linie metryczne z podpisami (na panelu bazy podpisy pomijamy, żeby się nie dublowały)
   const M = fontMetrics(), fs = 11 / px;
   const lines = [['wys. wersalików', M.cap], ['x-height', M.xh], ['ascender', M.asc], ['descender', M.desc]];
   const seen = new Set();
@@ -493,9 +510,11 @@ function renderGrid(box, px, asc){
     if (v == null || !isFinite(v) || seen.has(Math.round(v))) continue; seen.add(Math.round(v));
     const sy = asc - v;
     s += `<line class="metric" x1="${x0}" x2="${x1}" y1="${sy}" y2="${sy}"/>`;
+    if (bezPodpisow) continue;
     s += `<text class="metric-label" x="${(x0 + 4 / px).toFixed(2)}" y="${(sy - 4 / px).toFixed(2)}" font-size="${fs.toFixed(2)}">${name} ${Math.round(v)}</text>`;
   }
   s += `<line class="metric baseline" x1="${x0}" x2="${x1}" y1="${asc}" y2="${asc}"/>`;
+  if (bezPodpisow) return `<g aria-hidden="true">${s}</g>`;
   s += `<text class="metric-label" x="${(x0 + 4 / px).toFixed(2)}" y="${(asc - 4 / px).toFixed(2)}" font-size="${fs.toFixed(2)}">linia bazowa 0</text>`;
   s += `<text class="metric-label" x="${(x1 - 4 / px).toFixed(2)}" y="${(box.y + box.h - 4 / px).toFixed(2)}" font-size="${fs.toFixed(2)}" text-anchor="end">siatka ${minor} j., linie główne co ${major} j.</text>`;
   return `<g aria-hidden="true">${s}</g>`;
@@ -505,8 +524,9 @@ function renderEdit(rp, counts){
   const f = state.font, upm = f.unitsPerEm, asc = f.ascender, desc = f.descender, g = editGlyph();
   const H = asc - desc, adv = g.advanceWidth || upm * 0.5, key = 'g' + g.index;
   const st = document.querySelector('.stage');
+  const contour = state.vmode === 'contour';
   // przykładowe zdanie (na dole)
-  const lines = sampleLines(g), sPx = 54 / upm, lh = H * 1.05;
+  const lines = sampleLines(g), sPx = 26 / upm, lh = H * 1.05;
   let sPaths = '', sW = 0;
   lines.forEach((t, li) => {
     const L = layoutLine(f, t, asc + li * lh); sW = Math.max(sW, L.w);
@@ -521,7 +541,7 @@ function renderEdit(rp, counts){
   // i ten sam font pokazywał się w innej skali przy różnych znakach.
   const sHres = lh + H;
   const sampleSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${(sW * sPx).toFixed(0)}" height="${(sH * sPx).toFixed(0)}" viewBox="0 0 ${sW.toFixed(1)} ${sH.toFixed(1)}"><g class="glyph">${sPaths}</g></svg>`;
-  const sampleH = Math.ceil(sHres * sPx + 30);   // bez belki z podpowiedzią pasek jest niższy
+  const sampleH = Math.ceil(sHres * sPx + 18);
   // glif: wyśrodkowany i dopasowany do wolnego miejsca
   // Kadr ma STAŁY rozmiar dla całego fontu, żeby każdy glif był w tej samej skali
   // i przełączanie znaków niczym nie szarpało. Liczymy go z metryk całego fontu
@@ -534,45 +554,82 @@ function renderEdit(rp, counts){
   const advMax = isFinite(hh.advanceWidthMax) ? hh.advanceWidthMax : upm;
   const top = Math.max(asc, yMax), bot = Math.min(desc, yMin);
   const m = upm * 0.18;
-  const gw = Math.max(advMax, xMax - Math.min(0, xMin)) + 2 * m, gh = (top - bot) + 1.4 * m;
-  const gbox = { x: adv / 2 - gw / 2, y: (asc - top) - m * 0.5, w: gw, h: gh };
-  // wymiary obszaru glifu (scena bez marginesów, minus pasek ze zdaniem)
-  const areaW = Math.max(200, st.clientWidth - 56), areaH = Math.max(160, st.clientHeight - 56 - sampleH);
-  const px = Math.min((areaW - 48) / gbox.w, (areaH - 48) / gbox.h) * state.ezoom / 100;
-  // pole rysunku wypełnia cały obszar (siatka do krawędzi), glif w środku; po przybliżeniu rośnie i się przewija
-  const fw = Math.max(gbox.w, areaW / px), fh = Math.max(gbox.h, areaH / px);
-  const box = { x: gbox.x + gbox.w / 2 - fw / 2, y: gbox.y + gbox.h / 2 - fh / 2, w: fw, h: fh };
+  const gw = widthRef() + 2 * m, gh = (top - bot) + 1.4 * m;
+  // Podgląd bazy obok edytowanego glifu. Obie połowy mają tę samą skalę i ten sam
+  // kadr, a że baza i glif pochodny mają identyczne współrzędne, jedno zaznaczenie
+  // podświetla się samo po obu stronach — nic nie trzeba dopasowywać.
+  const baseIdx = state.base[state.edit];
+  const bg = (baseIdx != null && baseIdx !== g.index && f.glyphs.get(baseIdx)) || null;
+  const split = !!bg;
+  const areaW = Math.max(200, st.clientWidth - 8), areaH = Math.max(160, st.clientHeight - 8 - sampleH);
+  const paneW = split ? (areaW - 14) / 2 : areaW;
+  const px = Math.min((paneW - 48) / gw, (areaH - 48) / gh) * state.ezoom / 100;
   const hitR = 13 / Math.max(px, 1e-6), mR = 5.5 / Math.max(px, 1e-6);
-  let paths = '', origs = '', marks = '';
-  let an = null, M = null;
-  const contour = state.vmode === 'contour';
-  if (glyphCmds(g).length) {
-    const r = roundShape(key, glyphCmds(g), 'nonzero', rp); an = contour ? null : r.an; M = r.M;
-    paths += `<path${contour ? ' class="v-ghost"' : ''} d="${R.toPathData(r.cm, 0, asc, 1, true, 2)}"/>`;
-    if (state.showO) origs += `<path d="${R.toPathData(g.path.commands, 0, asc, 1, true, 2)}"/>`;
-  }
-  if (!state.showG) marks += `<line class="guide" x1="${box.x}" x2="${box.x + box.w}" y1="${asc}" y2="${asc}"/>`;
-  marks += `<line class="guide" x1="0" x2="0" y1="${box.y}" y2="${box.y + box.h}"/><line class="guide" x1="${adv}" x2="${adv}" y1="${box.y}" y2="${box.y + box.h}"/>`;
-  if (an) an.forEach((C, ci) => C.joints.forEach((J, k) => {
-    const c = C.corners[k], v = J.v; if (!v) return;
-    const cx = v.x.toFixed(2), cy = (asc - v.y).toFixed(2);
-    const n = M && M.nodeAt[ci][k];
-    if (c) { const t = effType(n, c); counts[t] = (counts[t] || 0) + 1; }
-    if (!state.showC) return;                  // podgląd bez znaczników — czysty kształt
-    if (c) {
-      const t = effType(n, c);
-      marks += `<circle class="m-${t}" cx="${cx}" cy="${cy}" r="${mR.toFixed(2)}"/>`;
-      if (n || c.forced) marks += `<circle class="m-halo" cx="${cx}" cy="${cy}" r="${(mR*1.9).toFixed(2)}"/><circle class="m-ovr" cx="${cx}" cy="${cy}" r="${(mR*1.9).toFixed(2)}"/>`;
-    } else {
-      marks += `<circle class="m-pt" cx="${cx}" cy="${cy}" r="${(mR*0.7).toFixed(2)}"/>`;
+  // Pionowy zakres jest WSPÓLNY dla obu paneli — liczony z sumy obu glifów.
+  // Inaczej każdy panel rozsuwałby kadr pod swój własny kształt i litery
+  // stałyby na różnych wysokościach, czyli nie dałoby się ich porównać.
+  const vExt = (() => {
+    const fh0 = Math.max(gh, areaH / px);
+    let T = ((asc - top) - m * 0.5) + gh / 2 - fh0 / 2, B = T + fh0;
+    for (const gl of (split ? [bg, g] : [g])) {
+      const c = glyphCmds(gl); if (!c.length) continue;
+      const b = cmdsBox([c]); if (!isFinite(b.x)) continue;
+      T = Math.min(T, (asc - (b.y + b.h)) - m * 0.5);
+      B = Math.max(B, (asc - b.y) + m * 0.5);
     }
-    if (state.sel.some(q => near(q, v))) marks += `<circle class="m-halo" cx="${cx}" cy="${cy}" r="${(mR*2.6).toFixed(2)}"/><circle class="m-sel" cx="${cx}" cy="${cy}" r="${(mR*2.6).toFixed(2)}"/>`;
-    marks += `<circle class="m-hit" data-node="${v.x.toFixed(2)},${v.y.toFixed(2)}" cx="${cx}" cy="${cy}" r="${hitR.toFixed(2)}"/>`;
-  }));
-  if (contour) marks += renderContourMarks(curCons(), asc, px);
-  const gridSvg = state.showG ? renderGrid(box, px, asc) : '';
-  const glyphSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.floor(box.w * px)}" height="${Math.floor(box.h * px)}" viewBox="${box.x.toFixed(1)} ${box.y.toFixed(1)} ${box.w.toFixed(1)} ${box.h.toFixed(1)}" role="img" aria-label="Edytowany glif">`
-    + gridSvg + `<g class="glyph">${paths}</g>` + (state.showO ? `<g class="orig">${origs}</g>` : '') + `<g>${marks}</g></svg>`;
+    return { y: T, h: B - T };
+  })();
+
+  const pane = (gl, isBase) => {
+    const a = gl.advanceWidth || upm * 0.5, k = 'g' + gl.index, cmds = glyphCmds(gl);
+    const gbox = { x: a / 2 - gw / 2, y: (asc - top) - m * 0.5, w: gw, h: gh };
+    const fw = Math.max(gbox.w, paneW / px);
+    const box = { x: gbox.x + gbox.w / 2 - fw / 2, y: vExt.y, w: fw, h: vExt.h };
+    const cb = cmds.length ? cmdsBox([cmds]) : null;
+    if (cb && isFinite(cb.x)) {   // w poziomie każdy panel może urosnąć pod swój glif
+      const L = Math.min(box.x, cb.x - m * 0.5), R = Math.max(box.x + box.w, cb.x + cb.w + m * 0.5);
+      box.x = L; box.w = R - L;
+    }
+    const vec = contour && !isBase;
+    let paths = '', origs = '', marks = '', an = null, M = null;
+    if (cmds.length) {
+      const r = roundShape(k, cmds, 'nonzero', rp);
+      an = vec ? null : r.an; M = r.M;
+      paths += `<path${vec ? ' class="v-ghost"' : ''} d="${R.toPathData(r.cm, 0, asc, 1, true, 2)}"/>`;
+      if (state.showO) origs += `<path d="${R.toPathData(gl.path.commands, 0, asc, 1, true, 2)}"/>`;
+    }
+    if (!state.showG) marks += `<line class="guide" x1="${box.x}" x2="${box.x + box.w}" y1="${asc}" y2="${asc}"/>`;
+    marks += `<line class="guide" x1="0" x2="0" y1="${box.y}" y2="${box.y + box.h}"/><line class="guide" x1="${a}" x2="${a}" y1="${box.y}" y2="${box.y + box.h}"/>`;
+    if (an) an.forEach((C, ci) => C.joints.forEach((J, k2) => {
+      const c = C.corners[k2], v = J.v; if (!v) return;
+      const cx = v.x.toFixed(2), cy = (asc - v.y).toFixed(2);
+      const n = M && M.nodeAt[ci][k2];
+      if (c && !isBase) { const t = effType(n, c); counts[t] = (counts[t] || 0) + 1; }
+      if (!state.showC) return;
+      if (c) {
+        const t = effType(n, c);
+        marks += `<circle class="m-${t}" cx="${cx}" cy="${cy}" r="${mR.toFixed(2)}"/>`;
+        if (n || c.forced) marks += `<circle class="m-halo" cx="${cx}" cy="${cy}" r="${(mR*1.9).toFixed(2)}"/><circle class="m-ovr" cx="${cx}" cy="${cy}" r="${(mR*1.9).toFixed(2)}"/>`;
+      } else if (!isBase) {
+        marks += `<circle class="m-pt" cx="${cx}" cy="${cy}" r="${(mR*0.7).toFixed(2)}"/>`;
+      }
+      const mine = isBase ? state.selBase : state.sel, other = isBase ? state.sel : state.selBase;
+      if (mine.some(q => near(q, v))) marks += `<circle class="m-halo" cx="${cx}" cy="${cy}" r="${(mR*2.6).toFixed(2)}"/><circle class="m-sel" cx="${cx}" cy="${cy}" r="${(mR*2.6).toFixed(2)}"/>`;
+      else if (split && other.some(q => near(q, v))) marks += `<circle class="m-echo" cx="${cx}" cy="${cy}" r="${(mR*2.6).toFixed(2)}"/>`;   // odpowiednik po drugiej stronie
+      marks += `<circle class="m-hit" data-${isBase ? 'base-node' : 'node'}="${v.x.toFixed(2)},${v.y.toFixed(2)}" cx="${cx}" cy="${cy}" r="${hitR.toFixed(2)}"/>`;
+    }));
+    if (vec) marks += renderContourMarks(curCons(), asc, px);
+    else if (contour && isBase && cmds.length) marks += renderContourMarks(toNodes(cmds), asc, px, true);
+    // przy podziale podpisy linii metrycznych tylko raz, po lewej stronie
+    const gridSvg = state.showG ? renderGrid(box, px, asc, split ? !isBase : false) : '';
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.floor(box.w * px)}" height="${Math.floor(box.h * px)}" viewBox="${box.x.toFixed(1)} ${box.y.toFixed(1)} ${box.w.toFixed(1)} ${box.h.toFixed(1)}" role="img" aria-label="${isBase ? 'Glif bazowy' : 'Edytowany glif'}">`
+      + gridSvg + `<g class="glyph">${paths}</g>` + (state.showO ? `<g class="orig">${origs}</g>` : '') + `<g>${marks}</g></svg>`;
+  };
+  const etyk = (gl) => (gl.unicode != null ? String.fromCodePoint(gl.unicode) : (gl.name || '#' + gl.index));
+  const glyphSvg = split
+    ? `<div class="pane-wrap base"><span class="pane-lbl">Baza — ${etyk(bg)}</span><div class="pane base"><div class="pane-box">${pane(bg, true)}</div></div></div>`
+      + `<div class="pane-wrap"><span class="pane-lbl">Edytujesz — ${etyk(g)}</span><div class="pane"><div class="pane-box">${pane(g, false)}</div></div></div>`
+    : pane(g, false);
   $('note').textContent = `${g.name || 'glif ' + g.index}, szerokość ${adv} j.`;
   return `<div class="edit-wrap"><div class="edit-main">${glyphSvg}</div><div class="edit-sample" style="height:${sampleH}px">${sampleSvg}</div></div>`;
 }
@@ -598,9 +655,12 @@ function render(){
   const editing = state.mode === 'font' && state.view === 'edit';
   sheet.classList.toggle('editing', editing); sheet.parentElement.classList.toggle('edit-mode', editing);
   if (editing) {
-    const em0 = sheet.querySelector('.edit-main'), keep = em0 ? [em0.scrollLeft, em0.scrollTop] : null;
+    const src0 = sheet.querySelector('.edit-main .pane') || sheet.querySelector('.edit-main');
+    const keep = src0 ? [src0.scrollLeft, src0.scrollTop] : null;
     sheet.innerHTML = renderEdit(rp, counts);
-    const em1 = sheet.querySelector('.edit-main'); if (em1 && keep) { em1.scrollLeft = keep[0]; em1.scrollTop = keep[1]; }
+    lastPane = null;
+    if (keep) for (const el of (sheet.querySelectorAll('.edit-main .pane').length ? sheet.querySelectorAll('.edit-main .pane') : sheet.querySelectorAll('.edit-main')))
+      { el.scrollLeft = keep[0]; el.scrollTop = keep[1]; }
     renderCount(counts); return;
   }
   if (state.mode === 'font') {
@@ -626,7 +686,7 @@ function render(){
     const b = state.box; const pad = Math.max(b.w, b.h) * 0.03;
     box = { x: b.x - pad, y: b.y - pad, w: b.w + 2*pad, h: b.h + 2*pad };
     const sheetEl = $('sheet'), stageEl = sheetEl.parentElement;
-    const fitW = Math.max(200, stageEl.clientWidth - 128), fitH = Math.max(200, stageEl.clientHeight - 128);
+    const fitW = Math.max(200, stageEl.clientWidth - 56), fitH = Math.max(200, stageEl.clientHeight - 56);
     pxPerUnit = Math.min(fitW / box.w, fitH / box.h) * state.zoom / 100;
     const r = markR / pxPerUnit;
     state.shapes.forEach((s, i) => {
@@ -650,7 +710,9 @@ function renderCount(counts){
 }
 
 /* ================= wejście: pliki ================= */
-function setMsg(t, err){ const m=$('msg'); m.textContent=t||''; m.className='msg'+(err?' err':''); }
+function setMsg(t, err){ const m = $('msg'); m.textContent = t || ''; m.className = 'msg' + (err ? ' err' : ''); }
+// komunikaty dotyczące wgrywania zostają w oknie wgrywania
+function setDropMsg(t, err){ const m = $('dropMsg'); m.textContent = t || ''; m.className = 'msg' + (err ? ' err' : ''); }
 function loadDemo(){
   const { shapes } = parseSvg(DEMO);
   useShapes(shapes, 'demo', 'kształty demo');
@@ -666,7 +728,7 @@ function useShapes(shapes, source, name){
 }
 function useFont(font, name, boot){
   state.mode='font'; state.source = boot ? 'boot' : 'font'; state.font=font; state.fontFile=name; state.shapes=[];
-  state.ovr = {}; state.sel = []; hist.undo.length = 0; hist.redo.length = 0; state.edit = firstGlyph();
+  state.ovr = {}; state.base = {}; state.sel = []; hist.undo.length = 0; hist.redo.length = 0; state.edit = firstGlyph();
   if (state.view === 'edit') state.view = 'text';
   state.ref = font.unitsPerEm; state.loadId = (state.loadId||0)+1; cache.clear(); refreshDetection(); syncUI();
   const fam = (font.names.fontFamily && (font.names.fontFamily.en || Object.values(font.names.fontFamily)[0])) || name.replace(/\.\w+$/,'');
@@ -676,8 +738,7 @@ function useFont(font, name, boot){
   schedule();
 }
 async function handleFile(file){
-  if (!$('lic').checked) { setMsg('Zaznacz najpierw potwierdzenie licencji.', true); return; }
-  setMsg('');
+  setDropMsg('');
   const name = file.name || 'plik'; const ext = (name.split('.').pop() || '').toLowerCase();
   try {
     if (ext === 'svg' || file.type === 'image/svg+xml') {
@@ -685,7 +746,7 @@ async function handleFile(file){
       const { shapes, notes } = parseSvg(txt);
       state.hash = 'svg-' + hashBytes(new TextEncoder().encode(txt));
       useShapes(shapes, 'svg', name); state.svgName = name.replace(/\.svg$/i,'');
-      offerRestore();
+      resetPick(); closeFileModal(); offerRestore();
       if (notes.length) setMsg('Uwaga: ' + notes.join('; ') + '.');
     } else if (['ttf','otf','woff'].includes(ext)) {
       if (!window.opentype) throw new Error('Nie udało się wczytać biblioteki do fontów (vendor/opentype.min.js). Odśwież stronę.');
@@ -694,13 +755,13 @@ async function handleFile(file){
       state.srcTables = (() => { try { return RounderVF.readTables(new Uint8Array(buf)); } catch(e) { return null; } })();
       state.hash = 'font-' + hashBytes(new Uint8Array(buf));
       useFont(font, name);
-      offerRestore();
+      resetPick(); closeFileModal(); offerRestore();
     } else if (ext === 'woff2') {
       throw new Error('WOFF2 nie jest jeszcze obsługiwany. Wgraj wersję TTF lub OTF.');
     } else throw new Error('Obsługiwane pliki: TTF, OTF, WOFF i SVG.');
   } catch (e) {
     const m = String(e && e.message || e);
-    setMsg(/signature|wOF2/i.test(m) ? 'Nie rozpoznaję formatu fontu. Wgraj TTF, OTF lub WOFF.' : m, true);
+    setDropMsg(/signature|wOF2/i.test(m) ? 'Nie rozpoznaję formatu fontu. Wgraj TTF, OTF lub WOFF.' : m, true);
   }
 }
 
@@ -871,16 +932,23 @@ function editInfo(){
   return { key, joints, M };
 }
 function selectNode(v, add){
+  state.selBase = [];                        // zaznaczenia po obu stronach są rozłączne
   if (add) { const i = state.sel.findIndex(q => near(q, v)); if (i >= 0) state.sel.splice(i, 1); else state.sel.push(v); }
   else state.sel = [v];
   updatePanel(); schedule();
 }
+function selectBaseNode(v, add){
+  state.sel = [];
+  if (add) { const i = state.selBase.findIndex(q => near(q, v)); if (i >= 0) state.selBase.splice(i, 1); else state.selBase.push(v); }
+  else state.selBase = [v];
+  updatePanel(); schedule();
+}
 function enterEdit(i){
-  state.edit = i; state.view = 'edit'; state.sel = []; state.vsel = [];
+  state.edit = i; state.view = 'edit'; state.sel = []; state.selBase = []; state.vsel = [];
   syncUI(); updatePanel(); render();
   const st = document.querySelector('.stage'); st.scrollLeft = 0; st.scrollTop = 0;
 }
-function setEdit(i){ state.edit = i; state.sel = []; state.vsel = []; syncUI(); updatePanel(); schedule(); }
+function setEdit(i){ state.edit = i; state.sel = []; state.selBase = []; state.vsel = []; syncUI(); updatePanel(); schedule(); }
 function stepGlyph(d){
   const f = state.font, N = f.glyphs.length; let i = state.edit;
   for (let n = 0; n < N; n++) { i = (i + d + N) % N; const g = f.glyphs.get(i); if (g.path && g.path.commands.length) break; }
@@ -959,6 +1027,7 @@ function updatePanel(){
     ob.querySelector('span').textContent = `${orph.length} ${orph.length === 1 ? 'korekta nie trafia' : 'korekt nie trafia'} w żaden narożnik — prawdopodobnie zmieniły się progi wykrywania.`;
     $('npOrph').onclick = () => { checkpoint(); const Ee = state.ovr[info.key]; Ee.nodes = Ee.nodes.filter(n => !orph.includes(n)); cleanOvr(info.key); updatePanel(); schedule(); autosave(); };
   } else { ob.textContent = ''; ob.className = 'msg'; }
+  renderBase();
   const keys = Object.keys(state.ovr).filter(k => k[0] === 'g' && hasOvr(k));
   $('npListWrap').hidden = !keys.length;
   $('npList').innerHTML = '';
@@ -974,6 +1043,147 @@ function cycleNode(d){
   let i = state.sel.length ? cs.findIndex(j => near(j.v, state.sel[0])) : -1;
   i = (i + d + cs.length) % cs.length; if (i < 0) i = 0;
   state.sel = [cs[i].v]; updatePanel(); schedule();
+}
+
+/* ================= baza glifu (źródło korekt do przeniesienia) ================= */
+const TYPE_PL = { end: 'zakończenie', out: 'zewnętrzny', in: 'wewnętrzny', off: 'ostry' };
+// litera bazowa z rozkładu Unicode: Ă → A, ó → o. Nie zadziała dla Ł czy ø — tam wybierasz ręcznie.
+function suggestBase(g){
+  if (g.unicode == null) return null;
+  const ch = String.fromCodePoint(g.unicode), d = ch.normalize('NFD');
+  if (d.length < 2 || d === ch) return null;
+  const i = state.font.charToGlyphIndex(d[0]);
+  return i > 0 && i !== g.index ? { i, ch: d[0] } : null;
+}
+// narożniki glifu bazowego wraz z ewentualną ręczną korektą przy każdym z nich
+function baseData(){
+  const bi = state.base[state.edit];
+  if (bi == null) return null;
+  const f = state.font, bg = f.glyphs.get(bi);
+  if (!bg) return null;
+  const key = 'g' + bi, cmds = glyphCmds(bg);
+  const E = state.ovr[key] || {};
+  const res = { bg, key, rows: [], scale: E.scale == null ? 100 : E.scale, forced: (E.force || []).length, orphans: 0 };
+  if (!cmds.length) return res;
+  const an = getAnalysis(key, cmds, 'nonzero'), M = matchOvr(key, an);
+  if (M) res.orphans = M.orphans.length;
+  an.forEach((C, ci) => C.corners.forEach((c, k) => {
+    if (!c) return;
+    const n = M && M.nodeAt[ci][k];
+    res.rows.push({ v: c.v, n: n || null, t: effType(n, c), forced: !!c.forced });
+  }));
+  return res;
+}
+// narożnik bazy leżący w tym samym miejscu co podany punkt
+function baseAt(v){
+  const D = baseData(); if (!D) return null;
+  return D.rows.find((r) => near(r.v, v)) || null;
+}
+const amtLabel = (n) => (n.mode === 'abs' ? 'zamrożona ' + n.amt : n.amt + '% suwaka');
+function renderBase(){
+  const on = state.mode === 'font' && state.view === 'edit';
+  $('baseWrap').hidden = !on;
+  if (!on) return;
+  const g = editGlyph(), bi = state.base[state.edit];
+  const sug = suggestBase(g);
+  const sb = $('baseSuggest');
+  if (sug && bi == null) { sb.hidden = false; sb.textContent = 'Użyj „' + sug.ch + '”'; sb.dataset.i = sug.i; }
+  else sb.hidden = true;
+  if (document.activeElement !== $('baseChar')) {
+    const bg0 = bi != null && state.font.glyphs.get(bi);
+    $('baseChar').value = bg0 && bg0.unicode != null ? String.fromCodePoint(bg0.unicode) : '';
+  }
+  $('baseClear').hidden = bi == null;
+  const msg = $('baseMsg'), box = $('baseNodeWrap');
+  const D = baseData();
+  if (bi == null || !D) {
+    msg.textContent = bi == null ? '' : 'Nie znalazłem takiego glifu.';
+    msg.className = bi == null ? 'msg' : 'msg err';
+    box.hidden = true; return;
+  }
+  const nazwa = D.bg.unicode != null ? '„' + String.fromCodePoint(D.bg.unicode) + '”' : (D.bg.name || '#' + D.bg.index);
+  msg.className = 'msg';
+  // kontekstowo: pokazujemy wyłącznie to, co baza ma w miejscu zaznaczonego węzła
+  const wiersz = (r, el) => {
+    el.className = 'base-row m-' + (r.t || 'off');
+    el.innerHTML = '<span class="dot"></span>';
+    const pos = document.createElement('span'); pos.className = 'pos';
+    pos.textContent = Math.round(r.v.x) + ', ' + Math.round(r.v.y);
+    const typ = document.createElement('span');
+    typ.textContent = r.t == null ? 'nie jest narożnikiem' : (TYPE_PL[r.t] || r.t);
+    const val = document.createElement('span'); val.className = 'val';
+    val.textContent = r.t == null ? 'sama geometria' : (r.n ? (r.t === 'off' ? 'ostry' : amtLabel(r.n)) : 'bez korekty');
+    el.append(pos, typ, val);
+  };
+  const row = $('baseNode'), copyBtn = $('baseCopy'), applyBtn = $('baseApply');
+  msg.textContent = 'Baza: glif ' + nazwa + '.';
+  if (state.selBase.length === 1) {
+    // zaznaczony węzeł po stronie bazy — można z niego skopiować ustawienie
+    let r = D.rows.find((q) => near(q.v, state.selBase[0]));
+    // w trybie Kontur węzeł może nie być narożnikiem — wtedy niesie samo położenie
+    if (!r && state.vmode === 'contour') r = { v: state.selBase[0], n: null, t: null };
+    $('baseNodeLbl').textContent = 'Zaznaczony węzeł w bazie';
+    if (!r) { msg.textContent = 'Baza: glif ' + nazwa + '. Ten punkt nie jest narożnikiem.'; box.hidden = true; }
+    else {
+      wiersz(r, row);
+      copyBtn.hidden = false; applyBtn.hidden = true;
+      copyBtn.disabled = false;
+      copyBtn.textContent = r.t == null ? 'Kopiuj geometrię' : 'Kopiuj ustawienie';
+      copyBtn.title = 'Cmd/Ctrl + C';
+      box.hidden = false;
+    }
+  } else if (state.sel.length === 1) {
+    // zaznaczony węzeł po stronie edytowanego glifu — pokazujemy, co baza ma w tym miejscu
+    const r = baseAt(state.sel[0]);
+    $('baseNodeLbl').textContent = 'Baza w tym samym miejscu';
+    if (!r) { msg.textContent = 'Baza: glif ' + nazwa + '. W tym miejscu baza nie ma narożnika.'; box.hidden = true; }
+    else {
+      wiersz(r, row);
+      copyBtn.hidden = true; applyBtn.hidden = false;
+      applyBtn.disabled = !r.n;
+      applyBtn.title = r.n ? '' : 'Baza nie ma tu ręcznej korekty — nie ma czego przenosić';
+      box.hidden = false;
+    }
+  } else {
+    msg.textContent = 'Baza: glif ' + nazwa + '. Kliknij węzeł po lewej, żeby skopiować jego ustawienie, albo po prawej, żeby je wkleić.';
+    box.hidden = true;
+  }
+  renderClip();
+}
+// schowek: jedno ustawienie narożnika, przenoszone między glifami
+function renderClip(){
+  const c = state.clip, w = $('clipWrap');
+  if (!c) { w.hidden = true; return; }
+  const eff = c.type == null ? 'off' : (c.eff || (c.type === 'auto' ? 'out' : c.type));
+  const el = $('clipRow');
+  el.className = 'base-row m-' + eff;
+  el.innerHTML = '<span class="dot"></span>';
+  const pos = document.createElement('span'); pos.className = 'pos'; pos.textContent = 'schowek';
+  pos.title = 'położenie węzła w schowku';
+  // „auto” znaczy „zostaw typ wykryty automatem” — dopisujemy, czym jest w praktyce
+  const ksztalt = c.in || c.out ? (c.smooth ? 'gładki' : 'z uchwytami') : 'wyprostowany';
+  const nazwaTypu = c.type == null ? 'geometria (' + ksztalt + ')'
+    : (c.type === 'auto' ? 'auto (' + (TYPE_PL[eff] || eff) + ')' : (TYPE_PL[c.type] || c.type));
+  const typ = document.createElement('span'); typ.textContent = nazwaTypu + (c.from ? ' z ' + c.from : '');
+  const val = document.createElement('span'); val.className = 'val';
+  val.textContent = c.type == null ? (c.from ? 'z ' + c.from : '—') : (c.type === 'off' ? 'ostry' : amtLabel(c));
+  el.append(pos, typ, val);
+  const sel = state.sel.length;
+  $('basePaste').hidden = c.type == null;
+  $('basePaste').disabled = !sel;
+  $('basePaste').title = sel ? 'Cmd/Ctrl + V' : 'Zaznacz węzeł po prawej, żeby wkleić';
+  $('basePaste').textContent = sel > 1 ? 'Wklej do ' + sel + ' węzłów' : 'Wklej ustawienie';
+  const pp = $('basePastePos');
+  pp.hidden = c.x == null;
+  pp.disabled = sel !== 1;
+  pp.title = sel === 1 ? 'Położenie ' + Math.round(c.x) + ', ' + Math.round(c.y) + ' razem z uchwytami krzywej (Cmd/Ctrl + Shift + V)'
+                       : 'Zaznacz dokładnie jeden węzeł po prawej';
+  if (c.x != null) pos.textContent = Math.round(c.x) + ', ' + Math.round(c.y);
+  w.hidden = false;
+}
+function setBase(i){
+  if (i == null) delete state.base[state.edit]; else state.base[state.edit] = i;
+  renderBase(); schedule(); autosave();
 }
 
 /* ================= edytor konturu ================= */
@@ -1168,7 +1378,7 @@ function vectorSetXY(axis, v){
   const d = Math.round(v) - Math.round(n[axis]); if (!d) return;
   vectorNudge(axis === 'x' ? d : 0, axis === 'y' ? d : 0);
 }
-function renderContourMarks(cons, asc, px){
+function renderContourMarks(cons, asc, px, ro){
   let s = '';
   const r = 4.5 / px, hr = 3.6 / px, hit = 10 / px;
   const segD = (a, b) => (a.out || b.in)
@@ -1177,10 +1387,17 @@ function renderContourMarks(cons, asc, px){
   let outline = '';
   cons.forEach((C, ci) => C.nodes.forEach((a, i) => {
     const b = C.nodes[(i + 1) % C.nodes.length]; const d = segD(a, b);
-    outline += d; s += `<path class="v-seg" data-vs="${ci},${i}" d="${d}"/>`;
+    outline += d; if (!ro) s += `<path class="v-seg" data-vs="${ci},${i}" d="${d}"/>`;
   }));
   s = `<path class="v-outline" d="${outline}"/>` + s;
   cons.forEach((C, ci) => C.nodes.forEach((n, ni) => {
+    if (ro) {
+      // kontur bazy: tylko do oglądania i zaznaczania, bez przeciągania
+      const on = state.selBase.some((q) => near(q, n));
+      s += `<circle class="v-node${on ? ' on' : ''}" cx="${n.x}" cy="${asc - n.y}" r="${r.toFixed(2)}"/>`;
+      s += `<circle class="v-hit" data-base-node="${n.x.toFixed(2)},${n.y.toFixed(2)}" cx="${n.x}" cy="${asc - n.y}" r="${hit.toFixed(2)}"/>`;
+      return;
+    }
     const nodeOn = vSelected(ci, ni, 'node');
     const showH = nodeOn || vSelected(ci, ni, 'in') || vSelected(ci, ni, 'out');
     if (showH) for (const part of ['in', 'out']) if (n[part]) {
@@ -1251,8 +1468,26 @@ function zoomCfg(){
   if (state.mode === 'font') return { min: 40, max: 1600, step: 2, get: () => state.size, set: v => state.size = v, label: 'Rozmiar stopnia w pikselach' };
   return { min: 20, max: 1500, step: 5, get: () => state.zoom, set: v => state.zoom = v, label: 'Powiększenie w procentach' };
 }
-// powiększenie z zachowaniem punktu pod kursorem (cx, cy względem obszaru podglądu)
-function scroller(){ return (state.mode === 'font' && state.view === 'edit' && document.querySelector('.edit-main')) || document.querySelector('.stage'); }
+// Przy podzielonym widoku każda połowa przewija się sama, ale obie trzymamy
+// w tym samym miejscu — żeby ten sam fragment glifu był widoczny po obu stronach.
+const panes = () => [...document.querySelectorAll('.edit-main .pane')];
+let syncing = false;
+function syncPanes(src){
+  if (syncing || !src) return;
+  syncing = true;
+  for (const p of panes()) if (p !== src) { p.scrollLeft = src.scrollLeft; p.scrollTop = src.scrollTop; }
+  syncing = false;
+}
+let lastPane = null;
+// element, którym przewijamy: w edycji glifu połowa pod kursorem, inaczej cała scena
+function scroller(){
+  if (state.mode === 'font' && state.view === 'edit') {
+    const ps = panes();
+    if (ps.length) return (lastPane && ps.includes(lastPane) && lastPane) || ps[ps.length - 1];
+    return document.querySelector('.edit-main') || document.querySelector('.stage');
+  }
+  return document.querySelector('.stage');
+}
 // Przybliżanie idzie zawsze przez suwak Skala: szczypanie na gładziku, Ctrl + kółko,
 // klawisze +/− i sam suwak robią dokładnie to samo. Dzięki temu suwak zawsze pokazuje
 // aktualny stan, a gest nie walczy z własnym kotwiczeniem na kursorze.
@@ -1265,23 +1500,26 @@ const curZoom = () => {
   if (zoomF == null || zoomFKey !== k) { zoomF = zoomCfg().get(); zoomFKey = k; }
   return zoomF;
 };
+const zoomStep = () => +$('size').step || 1;
 function zoomTo(v){
-  const z = zoomCfg(), step = +$('size').step || 1;
+  const z = zoomCfg();
   curZoom();                                 // dociągnij akumulator do bieżącego widoku
   zoomF = Math.max(z.min, Math.min(z.max, v));
-  const target = Math.round(zoomF / step) * step;
-  $('size').value = target;                  // suwak rusza się od razu, razem z gestem
-  if (zq) { zq.v = target; return; }
-  if (target === z.get()) return;            // jeszcze nie uzbierało się na pełny krok
+  // Do stanu idzie wartość CIĄGŁA. Zaokrąglanie do kroku suwaka dotyczy wyłącznie tego,
+  // co suwak pokazuje — inaczej gest na gładziku mógłby zmieniać powiększenie tylko
+  // skokami co 5% (tyle ma krok w edycji glifu) i wychodziło to szarpane.
+  $('size').value = Math.round(zoomF / zoomStep()) * zoomStep();
+  if (zq) { zq.v = zoomF; return; }
+  if (Math.abs(zoomF - z.get()) < 1e-3) return;
   const sc = scroller();
-  zq = { v: target, old: z.get(), sl: sc.scrollLeft, stp: sc.scrollTop };
+  zq = { v: zoomF, old: z.get(), sl: sc.scrollLeft, stp: sc.scrollTop };
   requestAnimationFrame(applyZoom);
 }
 function applyZoom(){
   const q = zq; zq = null; if (!q) return;
   const z = zoomCfg(), sc0 = scroller();
   const cx = sc0.clientWidth / 2, cy = sc0.clientHeight / 2, r = q.v / q.old;
-  z.set(q.v); $('size').value = q.v; render();
+  z.set(q.v); $('size').value = Math.round(q.v / zoomStep()) * zoomStep(); render();
   // środek widoku zostaje na swoim miejscu; gdy zawartość mieści się w oknie,
   // przewijanie i tak jest zerowe i wyśrodkowuje ją margin:auto
   const sc = scroller();
@@ -1291,6 +1529,15 @@ function applyZoom(){
 $('size').addEventListener('input', e => zoomTo(+e.target.value));
 (() => {
   const st = document.querySelector('.stage');
+  // scroll nie bąbelkuje, ale w fazie przechwytywania dociera do przodków
+  st.addEventListener('scroll', (e) => {
+    const p = e.target && e.target.closest && e.target.closest('.pane');
+    if (p) syncPanes(p);
+  }, true);
+  st.addEventListener('pointermove', (e) => {
+    const p = e.target && e.target.closest && e.target.closest('.pane');
+    if (p) lastPane = p;
+  }, true);
   let drag = null;
   // --- dwa palce: szczypanie przybliża, przesuwanie dwoma palcami przewija ---
   // Działa w każdym widoku, także w edycji glifu, gdzie jeden palec celowo nic nie robi.
@@ -1322,6 +1569,10 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
     if (e.button !== 0 || e.target.closest('input,textarea,button,select,a')) return;
     const vp = e.target.closest('[data-vp]');
     if (vp && !state.spacePan) { vectorDown(e, vp.dataset.vp); return; }
+    // panel bazy jest tylko do oglądania i zaznaczania — sprawdzamy go przed trybem Kontur,
+    // bo tamta gałąź wychodzi wcześniej i zjadała te kliknięcia
+    const hitB0 = e.target.closest('[data-base-node]');
+    if (hitB0 && !state.spacePan) { const [x, y] = hitB0.dataset.baseNode.split(',').map(Number); selectBaseNode({ x, y }, e.shiftKey); return; }
     if (state.mode === 'font' && state.view === 'edit' && state.vmode === 'contour' && !state.spacePan) {
       if (!e.shiftKey && !e.target.closest('[data-vs]') && state.vsel.length) { state.vsel = []; state.sel = []; updatePanel(); schedule(); }
       return;
@@ -1330,11 +1581,13 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
     if (hit) { const [x, y] = hit.dataset.node.split(',').map(Number); selectNode({ x, y }, e.shiftKey); return; }
     // klik obok narożnika odznacza — bez tego zaznaczenie wisiało aż do Escape
     if (state.mode === 'font' && state.view === 'edit' && state.vmode === 'corners'
-        && !state.spacePan && !e.shiftKey && state.sel.length) { state.sel = []; updatePanel(); schedule(); }
+        && !state.spacePan && !e.shiftKey && (state.sel.length || state.selBase.length)) { state.sel = []; state.selBase = []; updatePanel(); schedule(); }
     let el = st;
-    if (state.mode === 'font' && state.view === 'edit') {             // w edycji przesuwanie tylko ze spacją
-      if (!state.spacePan) return;
-      el = document.querySelector('.edit-main'); if (!el) return;
+    if (state.mode === 'font' && state.view === 'edit') {
+      if (state.vmode === 'contour' && !state.spacePan) return;      // tam przeciąganie rusza węzły
+      el = (e.target.closest && e.target.closest('.pane')) || document.querySelector('.edit-main');
+      if (!el) return;
+      lastPane = el.classList && el.classList.contains('pane') ? el : lastPane;
     }
     drag = { el, x: e.clientX, y: e.clientY, sl: el.scrollLeft, stp: el.scrollTop, id: e.pointerId, on: false };
   });
@@ -1350,6 +1603,7 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
     // przechwycenie dopiero po ruchu — zwykły klik i dwuklik trafiają w glif
     if (!drag.on) { if (Math.hypot(dx, dy) < 4) return; drag.on = true; st.setPointerCapture(e.pointerId); st.classList.add('dragging'); }
     drag.el.scrollLeft = drag.sl - dx; drag.el.scrollTop = drag.stp - dy;
+    if (drag.el.classList && drag.el.classList.contains('pane')) syncPanes(drag.el);
   });
   const end = e => {
     if (e.pointerType === 'touch') {
@@ -1379,7 +1633,7 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
     // Gładzik sypie drobnymi wartościami, mysz jedną dużą na ząbek — przycinamy,
     // żeby jedno kliknięcie kółka nie przeskakiwało przez pół zakresu.
     const d = Math.max(-25, Math.min(25, e.deltaY));
-    zoomTo(curZoom() * Math.exp(-d * 0.01));
+    zoomTo(curZoom() * Math.exp(-d * 0.007));
   }, { passive: false });
 })();
 function fitText(){ const t = $('text'); t.style.height = 'auto'; t.style.height = Math.min(120, Math.max(36, t.scrollHeight)) + 'px'; }
@@ -1396,18 +1650,46 @@ $('viewSeg').addEventListener('click', e => { const b = e.target.closest('button
   state.view = b.dataset.v; state.sel = []; syncUI(); updatePanel(); schedule(); });
 window.addEventListener('resize', () => { if (state.view === 'glyphs' || state.view === 'edit' || state.mode === 'svg') schedule(); });
 
-const drop = $('drop'), lic = $('lic');
-function setLic(){
-  const on = lic.checked; drop.classList.toggle('ready', on); drop.classList.toggle('locked', !on); drop.setAttribute('aria-disabled', !on);
-  $('dropHint').textContent = on ? 'Przeciągnij tutaj albo kliknij. TTF, OTF, WOFF, SVG.' : 'Najpierw zaznacz potwierdzenie licencji.';
+const fileModal = $('fileModal');
+function openFileModal(){
+  fileModal.hidden = false;
+  resetPick(); setDropMsg('');
+  setTimeout(() => $('drop').focus(), 0);
 }
+function closeFileModal(){ fileModal.hidden = true; }
+$('openFile').addEventListener('click', openFileModal);
+$('fileModalClose').addEventListener('click', closeFileModal);
+$('fileModalBg').addEventListener('click', closeFileModal);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !fileModal.hidden) { e.stopPropagation(); closeFileModal(); } }, true);
+
+const drop = $('drop'), lic = $('lic');
+let pendingFile = null;
+// Kolejność: najpierw wybierasz plik, dopiero potem potwierdzasz, że masz do niego prawa.
+// Potwierdzenie dotyczy konkretnego pliku, więc pytamy przy każdym.
+function pickFile(f){
+  if (!f) return;
+  pendingFile = f;
+  $('pickedName').textContent = f.name || 'plik';
+  lic.checked = false; $('licOk').disabled = true;
+  $('licStep').hidden = false; drop.hidden = true;
+  setDropMsg('');
+  setTimeout(() => lic.focus(), 0);
+}
+function resetPick(){
+  pendingFile = null;
+  $('licStep').hidden = true; drop.hidden = false;
+  lic.checked = false; $('licOk').disabled = true;
+}
+function setLic(){ $('licOk').disabled = !lic.checked; }
 lic.addEventListener('change', setLic);
-drop.addEventListener('click', () => { if (lic.checked) $('file').click(); else { setMsg('Zaznacz najpierw potwierdzenie licencji.', true); lic.focus(); } });
+$('licOk').addEventListener('click', () => { const f = pendingFile; if (f && lic.checked) handleFile(f); });
+$('licCancel').addEventListener('click', () => { resetPick(); setDropMsg(''); });
+drop.addEventListener('click', () => $('file').click());
 drop.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); drop.click(); } });
-$('file').addEventListener('change', e => { const f = e.target.files[0]; if (f) handleFile(f); e.target.value = ''; });
-['dragenter','dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); if (lic.checked) drop.classList.add('over'); }));
+$('file').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; pickFile(f); });
+['dragenter','dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
 ['dragleave','drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('over'); }));
-drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
+drop.addEventListener('drop', e => pickFile(e.dataTransfer.files[0]));
 $('expSvg').addEventListener('click', exportSvg);
 $('expFont').addEventListener('click', exportFont);
 $('expVF').addEventListener('click', exportVF);
@@ -1457,6 +1739,112 @@ $('vDel').addEventListener('click', vectorDelete);
 $('vReset').addEventListener('click', () => { const key = 'g' + state.edit, E = state.ovr[key]; if (!E || !E.path) return; checkpoint(); hist.t = 0; delete E.path; delete E.pk; cleanOvr(key); state.vsel = []; updatePanel(); schedule(); autosave(); });
 $('vX').addEventListener('change', e => vectorSetXY('x', +e.target.value));
 $('vY').addEventListener('change', e => vectorSetXY('y', +e.target.value));
+$('baseChar').addEventListener('input', e => {
+  const ch = [...e.target.value].pop();
+  if (!ch) { setBase(null); return; }
+  const i = state.font.charToGlyphIndex(ch);
+  if (i > 0) { e.target.value = ch; setBase(i); } else toast('Tego znaku nie ma w foncie');
+});
+$('baseSuggest').addEventListener('click', e => setBase(+e.currentTarget.dataset.i));
+$('baseApply').addEventListener('click', () => {
+  if (state.sel.length !== 1) return;
+  const r = baseAt(state.sel[0]);
+  if (!r || !r.n) return;
+  // przenosimy same wartości; położenie węzła docelowego zostaje nietknięte
+  setNodes((n) => { n.type = r.n.type; n.mode = r.n.mode; n.amt = r.n.amt; n.absorb = r.n.absorb; });
+  toast('Przeniesiono wartości z bazy');
+});
+const glyphLab = (gl) => (gl.unicode != null ? '„' + String.fromCodePoint(gl.unicode) + '”' : (gl.name || '#' + gl.index));
+// węzeł konturu glifu leżący w podanym miejscu (razem z numerem konturu i węzła)
+function nodeAtPos(gl, v){
+  const cons = toNodes(glyphCmds(gl));
+  let best = null, bd = Infinity;
+  cons.forEach((C, ci) => C.nodes.forEach((n, ni) => {
+    const d = Math.hypot(n.x - v.x, n.y - v.y);
+    if (d < bd) { bd = d; best = { cons, ci, ni, n }; }
+  }));
+  return best && bd <= tolN() ? best : null;
+}
+// geometria węzła do schowka: położenie plus uchwyty zapisane względem węzła,
+// dzięki czemu „gładki” albo „wyprostowany” przenosi się razem z kształtem
+function nodeGeom(gl, v){
+  const f = nodeAtPos(gl, v); if (!f) return null;
+  const n = f.n;
+  return { x: n.x, y: n.y, smooth: isSmooth(n),
+           in: n.in ? { x: n.in.x - n.x, y: n.in.y - n.y } : null,
+           out: n.out ? { x: n.out.x - n.x, y: n.out.y - n.y } : null };
+}
+// Do schowka trafia ustawienie narożnika. Gdy nie ma przy nim ręcznej korekty,
+// bierzemy to, co wykrył automat — wklejone gdzie indziej ustawi tam ten sam typ
+// na pełnej sile, co bywa dokładnie tym, o co chodzi.
+function copyNode(){
+  let r = null, src = null;
+  if (state.selBase.length === 1) {
+    const D = baseData(); if (!D) return false;
+    r = D.rows.find((q) => near(q.v, state.selBase[0]));
+    // w trybie Kontur zaznaczony węzeł bazy często nie jest narożnikiem —
+    // wtedy nie ma ustawień zaokrąglenia, ale samo położenie da się przenieść
+    if (!r) r = { v: state.selBase[0], n: null, t: null };
+    src = D.bg;
+  } else if (state.sel.length === 1) {
+    const info = editInfo(), j = info.joints.find((q) => q.c && near(q.v, state.sel[0]));
+    if (j) { r = { v: j.v, n: j.n || null, t: effType(j.n, j.c) }; src = editGlyph(); }
+  }
+  if (!r) return false;
+  const geom = nodeGeom(src, r.v);
+  if (r.t == null) {
+    state.clip = Object.assign({ type: null, x: r.v.x, y: r.v.y, from: glyphLab(src) }, geom || {});
+    updatePanel(); toast('Skopiowano geometrię węzła');
+    return true;
+  }
+  const n = r.n || { type: r.t, mode: 'rel', amt: 100, absorb: 'auto' };
+  state.clip = Object.assign({ type: n.type === 'auto' ? r.t : n.type, mode: n.mode, amt: n.amt,
+                               absorb: n.absorb, eff: r.t, x: r.v.x, y: r.v.y, from: glyphLab(src) }, geom || {});
+  updatePanel();
+  toast('Skopiowano ustawienie i geometrię' + (r.n ? '' : ' (ustawienie wykryte automatem)'));
+  return true;
+}
+// Robi z zaznaczonego węzła kopię tego ze schowka: to samo położenie i te same
+// uchwyty, czyli także „gładki” albo „wyprostowany”. Korekty przypięte do starego
+// miejsca jadą razem z węzłem.
+function pasteGeom(){
+  const c = state.clip;
+  if (!c || c.x == null || state.sel.length !== 1) return false;
+  const f = nodeAtPos(editGlyph(), state.sel[0]);
+  if (!f) { toast('W tym miejscu nie ma węzła konturu'); return false; }
+  const n = f.n, dx = c.x - n.x, dy = c.y - n.y;
+  const bylUchwyt = JSON.stringify([n.in, n.out]);
+  checkpoint(); hist.t = 0;
+  const stara = { x: n.x, y: n.y };
+  n.x = c.x; n.y = c.y;
+  if (c.in !== undefined) n.in = c.in ? { x: n.x + c.in.x, y: n.y + c.in.y } : null;
+  else if (n.in) { n.in.x += dx; n.in.y += dy; }
+  if (c.out !== undefined) n.out = c.out ? { x: n.x + c.out.x, y: n.y + c.out.y } : null;
+  else if (n.out) { n.out.x += dx; n.out.y += dy; }
+  const E = state.ovr['g' + state.edit];
+  if (E) for (const arr of [E.nodes || [], E.force || []]) for (const q of arr)
+    if (near(q, stara)) { q.x += dx; q.y += dy; }
+  writeCons(f.cons);
+  state.sel = [{ x: c.x, y: c.y }];
+  state.vsel = [{ ci: f.ci, ni: f.ni, part: 'node' }];
+  updatePanel(); schedule(); autosave();
+  const ruch = (Math.abs(dx) >= 0.5 || Math.abs(dy) >= 0.5) ? 'przesunięty o ' + Math.round(dx) + ', ' + Math.round(dy) + ' j.' : 'bez przesunięcia';
+  const uchwyty = JSON.stringify([n.in, n.out]) !== bylUchwyt ? ', uchwyty podmienione' : '';
+  toast('Wklejono geometrię — ' + ruch + uchwyty);
+  return true;
+}
+function pasteNode(){
+  const c = state.clip;
+  if (!c || c.type == null || !state.sel.length) return false;
+  setNodes((n) => { n.type = c.type; n.mode = c.mode; n.amt = c.amt; n.absorb = c.absorb; });
+  toast(state.sel.length > 1 ? 'Wklejono do ' + state.sel.length + ' węzłów' : 'Wklejono ustawienie');
+  return true;
+}
+$('baseCopy').addEventListener('click', copyNode);
+$('basePaste').addEventListener('click', pasteNode);
+$('basePastePos').addEventListener('click', pasteGeom);
+$('clipClear').addEventListener('click', () => { state.clip = null; updatePanel(); });
+$('baseClear').addEventListener('click', () => setBase(null));
 $('gPrev').addEventListener('click', () => stepGlyph(-1));
 $('gNext').addEventListener('click', () => stepGlyph(1));
 $('gChar').addEventListener('input', e => {
@@ -1482,6 +1870,13 @@ document.addEventListener('keydown', e => {
   const mod = e.metaKey || e.ctrlKey, k = e.key.toLowerCase();
   if (mod && k === 'z' && !typing) { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if (mod && k === 'y' && !typing) { e.preventDefault(); redo(); return; }
+  // Cmd/Ctrl + C kopiuje ustawienie zaznaczonego narożnika, Cmd/Ctrl + V je wkleja
+  if (mod && k === 'c' && !typing && state.mode === 'font' && state.view === 'edit'
+      && (state.selBase.length === 1 || state.sel.length === 1)) { if (copyNode()) { e.preventDefault(); return; } }
+  if (mod && e.shiftKey && k === 'v' && !typing && state.mode === 'font' && state.view === 'edit'
+      && state.sel.length === 1) { if (pasteGeom()) { e.preventDefault(); return; } }
+  if (mod && !e.shiftKey && k === 'v' && !typing && state.mode === 'font' && state.view === 'edit'
+      && state.sel.length) { if (pasteNode()) { e.preventDefault(); return; } }
   if (state.mode !== 'font' || state.view !== 'edit' || typing) return;
   if (e.key === ' ' && !e.repeat) { e.preventDefault(); state.spacePan = true; document.querySelector('.stage').classList.add('space'); return; }
   if (e.key === ' ') { e.preventDefault(); return; }
@@ -1495,7 +1890,7 @@ document.addEventListener('keydown', e => {
     if ((e.key === 'Backspace' || e.key === 'Delete') && state.vsel.length) { e.preventDefault(); vectorDelete(); return; }
     if (e.key === 'Escape') { state.vsel = []; state.sel = []; updatePanel(); schedule(); return; }
   }
-  if (e.key === 'Escape') { state.sel = []; updatePanel(); schedule(); }
+  if (e.key === 'Escape') { state.sel = []; state.selBase = []; updatePanel(); schedule(); }
   // strzałki lewo/prawo przeskakują narożniki; Tab zostaje wolny, żeby dało się wyjść klawiaturą
   else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); cycleNode(1); }
   else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); cycleNode(-1); }
