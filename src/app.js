@@ -1621,7 +1621,7 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
   };
   st.addEventListener('pointerup', end); st.addEventListener('pointercancel', end);
   // Ctrl/Cmd + kółko albo szczypanie na gładziku = powiększenie wokół kursora
-  st.addEventListener('wheel', e => {
+  document.querySelector('.main').addEventListener('wheel', e => {
     const sc = scroller();
     if (!(e.ctrlKey || e.metaKey)) {
       // przesuwanie dwoma palcami po gładziku: w edycji glifu przewijamy pole rysunku,

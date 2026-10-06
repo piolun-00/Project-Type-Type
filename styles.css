@@ -277,11 +277,12 @@ section h2{margin:0 0 10px; font-size:12px; letter-spacing:.01em}
 /* --- pływający pasek narzędzi nad kadrem --- */
 .main{position:relative}
 .ic{width:17px; height:17px; display:block}
-.toolbar{position:absolute; left:50%; transform:translateX(-50%); z-index:20;
+.toolbar{pointer-events:none; position:absolute; left:50%; transform:translateX(-50%); z-index:20;
   bottom:calc(var(--sampleH, 0px) + 54px);
   display:flex; align-items:center; gap:8px; padding:6px;
   background:var(--sheet); border:1px solid var(--line); border-radius:12px;
   box-shadow:0 8px 26px rgba(0,0,0,.14)}
+.tb-group, .tb-sep, .tb-size{pointer-events:auto}
 .tb-group{display:flex; align-items:center; gap:2px}
 .tb-sep{width:1px; align-self:stretch; background:var(--line); margin:2px 2px}
 .tb-btn{width:30px; height:30px; display:grid; place-items:center; border:0; border-radius:8px;
