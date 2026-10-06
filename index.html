@@ -61,17 +61,18 @@
       <button class="linkbtn" id="npResetGlyph">Przywróć cały glif</button>
       </div>
       <div id="baseWrap" hidden>
-        <h3 class="np-h3">Baza</h3>
-        <p class="hint" id="baseHint" style="margin-top:0">Wskaż glif, z którego chcesz przenieść korekty. Dla znaków z akcentem podpowiadam literę bazową.</p>
+        <h3 class="np-h3">Baza glifu</h3>
+        <p class="hint" id="baseHint" style="margin-top:0">Wskaż glif, z którego czerpiesz. Dla znaków z akcentem podpowiadam literę bazową.</p>
         <div class="base-pick">
           <input id="baseChar" type="text" maxlength="4" spellcheck="false" placeholder="znak" aria-label="Glif bazowy">
           <button class="btn" id="baseSuggest" hidden></button>
           <button class="linkbtn" id="baseClear" hidden>Wyczyść</button>
         </div>
         <div class="msg" id="baseMsg"></div>
-        <div id="baseListWrap" hidden>
-          <span class="lbl" style="display:block; font-size:12.5px; color:var(--muted); margin:10px 0 6px">Korekty w glifie bazowym</span>
-          <div class="base-list" id="baseList"></div>
+        <div id="baseNodeWrap" hidden>
+          <span class="lbl" style="display:block; font-size:12.5px; color:var(--muted); margin:10px 0 6px">Zaznaczony węzeł w bazie</span>
+          <div class="base-row" id="baseNode"></div>
+          <div class="btn-row" style="margin-top:8px"><button class="btn" id="baseApply">Przenieś wartości</button></div>
         </div>
       </div>
       <div id="npListWrap" style="margin-top:14px" hidden><span class="lbl" style="display:block; font-size:12.5px; color:var(--muted); margin-bottom:6px">Glify z korektami</span><div class="chips" id="npList"></div></div>

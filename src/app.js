@@ -1010,7 +1010,7 @@ function suggestBase(g){
   const i = state.font.charToGlyphIndex(d[0]);
   return i > 0 && i !== g.index ? { i, ch: d[0] } : null;
 }
-// korekty glifu bazowego, już rozpoznane względem jego narożników
+// narożniki glifu bazowego wraz z ewentualną ręczną korektą przy każdym z nich
 function baseData(){
   const bi = state.base[state.edit];
   if (bi == null) return null;
@@ -1023,12 +1023,16 @@ function baseData(){
   const an = getAnalysis(key, cmds, 'nonzero'), M = matchOvr(key, an);
   if (M) res.orphans = M.orphans.length;
   an.forEach((C, ci) => C.corners.forEach((c, k) => {
+    if (!c) return;
     const n = M && M.nodeAt[ci][k];
-    if (!n) return;
-    res.rows.push({ v: c.v, n, t: effType(n, c) });
+    res.rows.push({ v: c.v, n: n || null, t: effType(n, c), forced: !!c.forced });
   }));
-  res.rows.sort((a, b) => (b.v.y - a.v.y) || (a.v.x - b.v.x));
   return res;
+}
+// narożnik bazy leżący w tym samym miejscu co podany punkt
+function baseAt(v){
+  const D = baseData(); if (!D) return null;
+  return D.rows.find((r) => near(r.v, v)) || null;
 }
 const amtLabel = (n) => (n.mode === 'abs' ? 'zamrożona ' + n.amt : n.amt + '% suwaka');
 function renderBase(){
@@ -1041,38 +1045,43 @@ function renderBase(){
   if (sug && bi == null) { sb.hidden = false; sb.textContent = 'Użyj „' + sug.ch + '”'; sb.dataset.i = sug.i; }
   else sb.hidden = true;
   if (document.activeElement !== $('baseChar')) {
-    const bg = bi != null && state.font.glyphs.get(bi);
-    $('baseChar').value = bg && bg.unicode != null ? String.fromCodePoint(bg.unicode) : '';
+    const bg0 = bi != null && state.font.glyphs.get(bi);
+    $('baseChar').value = bg0 && bg0.unicode != null ? String.fromCodePoint(bg0.unicode) : '';
   }
   $('baseClear').hidden = bi == null;
-  const D = baseData(), msg = $('baseMsg');
-  if (bi == null) { msg.textContent = ''; msg.className = 'msg'; $('baseListWrap').hidden = true; return; }
-  if (!D) { msg.textContent = 'Nie znalazłem takiego glifu.'; msg.className = 'msg err'; $('baseListWrap').hidden = true; return; }
+  const msg = $('baseMsg'), box = $('baseNodeWrap');
+  const D = baseData();
+  if (bi == null || !D) {
+    msg.textContent = bi == null ? '' : 'Nie znalazłem takiego glifu.';
+    msg.className = bi == null ? 'msg' : 'msg err';
+    box.hidden = true; return;
+  }
   const nazwa = D.bg.unicode != null ? '„' + String.fromCodePoint(D.bg.unicode) + '”' : (D.bg.name || '#' + D.bg.index);
   msg.className = 'msg';
-  if (!D.rows.length && D.scale === 100 && !D.forced) {
-    msg.textContent = 'Glif ' + nazwa + ' nie ma jeszcze żadnych korekt — nie ma czego przenosić.';
-    $('baseListWrap').hidden = true; return;
+  // kontekstowo: pokazujemy wyłącznie to, co baza ma w miejscu zaznaczonego węzła
+  const sel = state.sel;
+  if (sel.length !== 1) {
+    msg.textContent = 'Baza: glif ' + nazwa + '. Zaznacz węzeł, żeby zobaczyć, co baza ma w tym miejscu.';
+    box.hidden = true; return;
   }
-  const extra = [];
-  if (D.scale !== 100) extra.push('skala całego glifu ' + D.scale + '%');
-  if (D.forced) extra.push(D.forced + ' wymuszonych narożników');
-  if (D.orphans) extra.push(D.orphans + ' korekt nie trafia w narożnik');
-  msg.textContent = 'Baza: glif ' + nazwa + (extra.length ? '. ' + extra.join(', ') + '.' : '.');
-  const L = $('baseList'); L.innerHTML = '';
-  for (const r of D.rows) {
-    const el = document.createElement('div');
-    el.className = 'base-row m-' + r.t;
-    const pos = document.createElement('span'); pos.className = 'pos';
-    pos.textContent = Math.round(r.v.x) + ', ' + Math.round(r.v.y);
-    const typ = document.createElement('span'); typ.textContent = TYPE_PL[r.t] || r.t;
-    const val = document.createElement('span'); val.className = 'val';
-    val.textContent = r.t === 'off' ? '—' : amtLabel(r.n);
-    el.innerHTML = '<span class="dot"></span>';
-    el.append(pos, typ, val);
-    L.appendChild(el);
+  const r = baseAt(sel[0]);
+  const row = $('baseNode'), btn = $('baseApply');
+  if (!r) {
+    msg.textContent = 'Baza: glif ' + nazwa + '. W tym miejscu baza nie ma narożnika.';
+    box.hidden = true; return;
   }
-  $('baseListWrap').hidden = false;
+  msg.textContent = 'Baza: glif ' + nazwa + '.';
+  row.className = 'base-row m-' + r.t;
+  row.innerHTML = '<span class="dot"></span>';
+  const pos = document.createElement('span'); pos.className = 'pos';
+  pos.textContent = Math.round(r.v.x) + ', ' + Math.round(r.v.y);
+  const typ = document.createElement('span'); typ.textContent = TYPE_PL[r.t] || r.t;
+  const val = document.createElement('span'); val.className = 'val';
+  val.textContent = r.n ? (r.t === 'off' ? 'ostry' : amtLabel(r.n)) : 'bez korekty (wykryty automatem)';
+  row.append(pos, typ, val);
+  btn.disabled = !r.n;
+  btn.title = r.n ? '' : 'Baza nie ma tu ręcznej korekty — nie ma czego przenosić';
+  box.hidden = false;
 }
 function setBase(i){
   if (i == null) delete state.base[state.edit]; else state.base[state.edit] = i;
@@ -1567,6 +1576,14 @@ $('baseChar').addEventListener('input', e => {
   if (i > 0) { e.target.value = ch; setBase(i); } else toast('Tego znaku nie ma w foncie');
 });
 $('baseSuggest').addEventListener('click', e => setBase(+e.currentTarget.dataset.i));
+$('baseApply').addEventListener('click', () => {
+  if (state.sel.length !== 1) return;
+  const r = baseAt(state.sel[0]);
+  if (!r || !r.n) return;
+  // przenosimy same wartości; położenie węzła docelowego zostaje nietknięte
+  setNodes((n) => { n.type = r.n.type; n.mode = r.n.mode; n.amt = r.n.amt; n.absorb = r.n.absorb; });
+  toast('Przeniesiono wartości z bazy');
+});
 $('baseClear').addEventListener('click', () => setBase(null));
 $('gPrev').addEventListener('click', () => stepGlyph(-1));
 $('gNext').addEventListener('click', () => stepGlyph(1));
