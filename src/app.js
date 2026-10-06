@@ -30,7 +30,8 @@ const state = {
   edit: 0,
   sel: [],
   ovr: {},          // klucz glifu → { scale, nodes:[{x,y,type,mode,amt,absorb}], force:[{x,y}] }
-  base: {},         // indeks edytowanego glifu → indeks glifu bazowego
+  base: {},         // ręcznie wskazana baza: indeks glifu → indeks glifu bazowego
+  baseOn: false,    // tryb bazy: raz włączony zostaje przy przewijaniu glifów
   selBase: [],      // zaznaczenie po stronie bazy (osobne od state.sel)
   clip: null,       // schowek: { type, mode, amt, absorb, from }
   hash: '',
@@ -354,7 +355,7 @@ const LSKEY = () => 'type-type:' + state.hash;
 const LSKEY_OLD = () => 'szlifiernia:' + state.hash;
 function settingsObj(){
   return { app:'Type Type', version:1, source:{ name: state.mode === 'font' ? state.fontFile : (state.svgName || ''), hash: state.hash },
-    p: state.p, ovr: state.ovr, base: state.base, union: state.union, strokeOv: state.strokeOv, famName: $('famName').value, text: state.text, saved: Date.now() };
+    p: state.p, ovr: state.ovr, base: state.base, baseOn: state.baseOn, union: state.union, strokeOv: state.strokeOv, famName: $('famName').value, text: state.text, saved: Date.now() };
 }
 function autosave(){
   if (!state.hash || state.source === 'demo') return;
@@ -366,6 +367,7 @@ function applySettings(o, fromFile){
   state.p = Object.assign({}, DEF, o.p || {});
   state.ovr = o.ovr && typeof o.ovr === 'object' ? o.ovr : {};
   state.base = o.base && typeof o.base === 'object' ? o.base : {};
+  state.baseOn = !!o.baseOn;
   if (typeof o.union === 'boolean') { state.union = o.union; $('union').checked = o.union; }
   state.strokeOv = o.strokeOv > 0 ? o.strokeOv : null; $('strokeOv').value = state.strokeOv || '';
   if (o.famName && state.mode === 'font') $('famName').value = o.famName;
@@ -575,8 +577,8 @@ function renderEdit(rp, counts){
   // Podgląd bazy obok edytowanego glifu. Obie połowy mają tę samą skalę i ten sam
   // kadr, a że baza i glif pochodny mają identyczne współrzędne, jedno zaznaczenie
   // podświetla się samo po obu stronach — nic nie trzeba dopasowywać.
-  const baseIdx = state.base[state.edit];
-  const bg = (baseIdx != null && baseIdx !== g.index && f.glyphs.get(baseIdx)) || null;
+  const bIdx = curBase();
+  const bg = (bIdx != null && bIdx !== g.index && f.glyphs.get(bIdx)) || null;
   const split = !!bg;
   const areaW = Math.max(200, st.clientWidth - 8), areaH = Math.max(160, st.clientHeight - 8);
   const paneW = split ? (areaW - 14) / 2 : areaW;
@@ -1070,6 +1072,13 @@ function cycleNode(d){
 /* ================= baza glifu (źródło korekt do przeniesienia) ================= */
 const TYPE_PL = { end: 'zakończenie', out: 'zewnętrzny', in: 'wewnętrzny', off: 'ostry' };
 // litera bazowa z rozkładu Unicode: Ă → A, ó → o. Nie zadziała dla Ł czy ø — tam wybierasz ręcznie.
+function curBase(){
+  if (!state.baseOn || state.mode !== 'font' || !state.font) return null;
+  const g = editGlyph();
+  if (state.base[state.edit] != null) return state.base[state.edit];
+  const s = suggestBase(g);
+  return s ? s.i : null;
+}
 function suggestBase(g){
   if (g.unicode == null) return null;
   const ch = String.fromCodePoint(g.unicode), d = ch.normalize('NFD');
@@ -1079,7 +1088,7 @@ function suggestBase(g){
 }
 // narożniki glifu bazowego wraz z ewentualną ręczną korektą przy każdym z nich
 function baseData(){
-  const bi = state.base[state.edit];
+  const bi = curBase();
   if (bi == null) return null;
   const f = state.font, bg = f.glyphs.get(bi);
   if (!bg) return null;
@@ -1106,7 +1115,7 @@ function renderBase(){
   const on = state.mode === 'font' && state.view === 'edit';
   $('baseWrap').hidden = !on;
   if (!on) return;
-  const g = editGlyph(), bi = state.base[state.edit];
+  const g = editGlyph(), bi = curBase();
   baseBtnLabel();
   const sug = suggestBase(g);
   const sb = $('baseSuggest');
@@ -1205,17 +1214,21 @@ function renderClip(){
   w.hidden = false;
 }
 function baseBtnLabel(){
-  const bi = state.base[state.edit];
+  const bi = curBase();
   const bg = bi != null && state.font && state.font.glyphs.get(bi);
-  $('baseBtn').textContent = bg ? 'Baza: ' + glyphLab(bg).replace(/[„”]/g, '') : 'Baza';
-  $('baseBtn').classList.toggle('primary', !!bg);
+  $('baseBtn').textContent = state.baseOn ? (bg ? 'Baza: ' + glyphLab(bg).replace(/[„”]/g, '') : 'Baza: brak') : 'Baza';
+  $('baseBtn').classList.toggle('primary', state.baseOn);
+  $('baseBtn').setAttribute('aria-pressed', state.baseOn);
 }
 function openBasePop(){
-  const g = editGlyph(), sug = suggestBase(g);
-  // okienko pokazuje domyślną literę od razu, żeby dało się ją tylko poprawić
-  if (state.base[state.edit] == null && sug) setBase(sug.i);
   $('basePop').hidden = false; $('baseBtn').setAttribute('aria-expanded', 'true');
   setTimeout(() => { $('baseChar').focus(); $('baseChar').select(); }, 0);
+}
+function toggleBase(){
+  state.baseOn = !state.baseOn;
+  if (!state.baseOn) closeBasePop();
+  renderBase(); syncUI(); schedule(); autosave();
+  if (state.baseOn) openBasePop();
 }
 function closeBasePop(){ $('basePop').hidden = true; $('baseBtn').setAttribute('aria-expanded', 'false'); }
 function setBase(i){
@@ -1882,7 +1895,7 @@ $('baseChar').addEventListener('input', e => {
   const i = state.font.charToGlyphIndex(ch);
   if (i > 0) { e.target.value = ch; setBase(i); } else toast('Tego znaku nie ma w foncie');
 });
-$('baseBtn').addEventListener('click', () => ($('basePop').hidden ? openBasePop() : closeBasePop()));
+$('baseBtn').addEventListener('click', toggleBase);
 document.addEventListener('pointerdown', (e) => {
   if ($('basePop').hidden) return;
   if (!e.target.closest('#basePop') && !e.target.closest('#baseBtn')) closeBasePop();
@@ -1986,7 +1999,7 @@ $('baseCopy').addEventListener('click', copyNode);
 $('basePaste').addEventListener('click', pasteNode);
 $('basePastePos').addEventListener('click', pasteGeom);
 $('clipClear').addEventListener('click', () => { state.clip = null; updatePanel(); });
-$('baseClear').addEventListener('click', () => { setBase(null); closeBasePop(); });
+$('baseClear').addEventListener('click', () => { setBase(null); closeBasePop(); });   // wraca do litery z rozkładu
 $('gPrev').addEventListener('click', () => stepGlyph(-1));
 $('gNext').addEventListener('click', () => stepGlyph(1));
 $('gChar').addEventListener('input', e => {
