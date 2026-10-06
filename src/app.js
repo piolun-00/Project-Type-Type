@@ -30,6 +30,8 @@ const state = {
   sel: [],
   ovr: {},          // klucz glifu → { scale, nodes:[{x,y,type,mode,amt,absorb}], force:[{x,y}] }
   base: {},         // indeks edytowanego glifu → indeks glifu bazowego
+  selBase: [],      // zaznaczenie po stronie bazy (osobne od state.sel)
+  clip: null,       // schowek: { type, mode, amt, absorb, from }
   hash: '',
   showC: true, showO: false,
   booting: true,     // zanim wczytamy domyślny font, nie rysujemy nic migotliwego
@@ -611,8 +613,10 @@ function renderEdit(rp, counts){
       } else if (!isBase) {
         marks += `<circle class="m-pt" cx="${cx}" cy="${cy}" r="${(mR*0.7).toFixed(2)}"/>`;
       }
-      if (state.sel.some(q => near(q, v))) marks += `<circle class="m-halo" cx="${cx}" cy="${cy}" r="${(mR*2.6).toFixed(2)}"/><circle class="m-sel" cx="${cx}" cy="${cy}" r="${(mR*2.6).toFixed(2)}"/>`;
-      marks += `<circle class="m-hit" data-node="${v.x.toFixed(2)},${v.y.toFixed(2)}" cx="${cx}" cy="${cy}" r="${hitR.toFixed(2)}"/>`;
+      const mine = isBase ? state.selBase : state.sel, other = isBase ? state.sel : state.selBase;
+      if (mine.some(q => near(q, v))) marks += `<circle class="m-halo" cx="${cx}" cy="${cy}" r="${(mR*2.6).toFixed(2)}"/><circle class="m-sel" cx="${cx}" cy="${cy}" r="${(mR*2.6).toFixed(2)}"/>`;
+      else if (split && other.some(q => near(q, v))) marks += `<circle class="m-echo" cx="${cx}" cy="${cy}" r="${(mR*2.6).toFixed(2)}"/>`;   // odpowiednik po drugiej stronie
+      marks += `<circle class="m-hit" data-${isBase ? 'base-node' : 'node'}="${v.x.toFixed(2)},${v.y.toFixed(2)}" cx="${cx}" cy="${cy}" r="${hitR.toFixed(2)}"/>`;
     }));
     if (vec) marks += renderContourMarks(curCons(), asc, px);
     const gridSvg = state.showG ? renderGrid(box, px, asc, isBase) : '';
@@ -922,16 +926,23 @@ function editInfo(){
   return { key, joints, M };
 }
 function selectNode(v, add){
+  state.selBase = [];                        // zaznaczenia po obu stronach są rozłączne
   if (add) { const i = state.sel.findIndex(q => near(q, v)); if (i >= 0) state.sel.splice(i, 1); else state.sel.push(v); }
   else state.sel = [v];
   updatePanel(); schedule();
 }
+function selectBaseNode(v, add){
+  state.sel = [];
+  if (add) { const i = state.selBase.findIndex(q => near(q, v)); if (i >= 0) state.selBase.splice(i, 1); else state.selBase.push(v); }
+  else state.selBase = [v];
+  updatePanel(); schedule();
+}
 function enterEdit(i){
-  state.edit = i; state.view = 'edit'; state.sel = []; state.vsel = [];
+  state.edit = i; state.view = 'edit'; state.sel = []; state.selBase = []; state.vsel = [];
   syncUI(); updatePanel(); render();
   const st = document.querySelector('.stage'); st.scrollLeft = 0; st.scrollTop = 0;
 }
-function setEdit(i){ state.edit = i; state.sel = []; state.vsel = []; syncUI(); updatePanel(); schedule(); }
+function setEdit(i){ state.edit = i; state.sel = []; state.selBase = []; state.vsel = []; syncUI(); updatePanel(); schedule(); }
 function stepGlyph(d){
   const f = state.font, N = f.glyphs.length; let i = state.edit;
   for (let n = 0; n < N; n++) { i = (i + d + N) % N; const g = f.glyphs.get(i); if (g.path && g.path.commands.length) break; }
@@ -1087,29 +1098,68 @@ function renderBase(){
   const nazwa = D.bg.unicode != null ? '„' + String.fromCodePoint(D.bg.unicode) + '”' : (D.bg.name || '#' + D.bg.index);
   msg.className = 'msg';
   // kontekstowo: pokazujemy wyłącznie to, co baza ma w miejscu zaznaczonego węzła
-  const sel = state.sel;
-  if (sel.length !== 1) {
-    msg.textContent = 'Baza: glif ' + nazwa + '. Zaznacz węzeł, żeby zobaczyć, co baza ma w tym miejscu.';
-    box.hidden = true; return;
-  }
-  const r = baseAt(sel[0]);
-  const row = $('baseNode'), btn = $('baseApply');
-  if (!r) {
-    msg.textContent = 'Baza: glif ' + nazwa + '. W tym miejscu baza nie ma narożnika.';
-    box.hidden = true; return;
-  }
+  const wiersz = (r, el) => {
+    el.className = 'base-row m-' + r.t;
+    el.innerHTML = '<span class="dot"></span>';
+    const pos = document.createElement('span'); pos.className = 'pos';
+    pos.textContent = Math.round(r.v.x) + ', ' + Math.round(r.v.y);
+    const typ = document.createElement('span'); typ.textContent = TYPE_PL[r.t] || r.t;
+    const val = document.createElement('span'); val.className = 'val';
+    val.textContent = r.n ? (r.t === 'off' ? 'ostry' : amtLabel(r.n)) : 'bez korekty (wykryty automatem)';
+    el.append(pos, typ, val);
+  };
+  const row = $('baseNode'), copyBtn = $('baseCopy'), applyBtn = $('baseApply');
   msg.textContent = 'Baza: glif ' + nazwa + '.';
-  row.className = 'base-row m-' + r.t;
-  row.innerHTML = '<span class="dot"></span>';
-  const pos = document.createElement('span'); pos.className = 'pos';
-  pos.textContent = Math.round(r.v.x) + ', ' + Math.round(r.v.y);
-  const typ = document.createElement('span'); typ.textContent = TYPE_PL[r.t] || r.t;
+  if (state.selBase.length === 1) {
+    // zaznaczony węzeł po stronie bazy — można z niego skopiować ustawienie
+    const r = D.rows.find((q) => near(q.v, state.selBase[0]));
+    $('baseNodeLbl').textContent = 'Zaznaczony węzeł w bazie';
+    if (!r) { msg.textContent = 'Baza: glif ' + nazwa + '. Ten punkt nie jest narożnikiem.'; box.hidden = true; }
+    else {
+      wiersz(r, row);
+      copyBtn.hidden = false; applyBtn.hidden = true;
+      copyBtn.disabled = !r.n;
+      copyBtn.title = r.n ? '' : 'Ten narożnik nie ma ręcznej korekty — nie ma czego kopiować';
+      box.hidden = false;
+    }
+  } else if (state.sel.length === 1) {
+    // zaznaczony węzeł po stronie edytowanego glifu — pokazujemy, co baza ma w tym miejscu
+    const r = baseAt(state.sel[0]);
+    $('baseNodeLbl').textContent = 'Baza w tym samym miejscu';
+    if (!r) { msg.textContent = 'Baza: glif ' + nazwa + '. W tym miejscu baza nie ma narożnika.'; box.hidden = true; }
+    else {
+      wiersz(r, row);
+      copyBtn.hidden = true; applyBtn.hidden = false;
+      applyBtn.disabled = !r.n;
+      applyBtn.title = r.n ? '' : 'Baza nie ma tu ręcznej korekty — nie ma czego przenosić';
+      box.hidden = false;
+    }
+  } else {
+    msg.textContent = 'Baza: glif ' + nazwa + '. Kliknij węzeł po lewej, żeby skopiować jego ustawienie, albo po prawej, żeby je wkleić.';
+    box.hidden = true;
+  }
+  renderClip();
+}
+// schowek: jedno ustawienie narożnika, przenoszone między glifami
+function renderClip(){
+  const c = state.clip, w = $('clipWrap');
+  if (!c) { w.hidden = true; return; }
+  const eff = c.eff || (c.type === 'auto' ? 'out' : c.type);
+  const el = $('clipRow');
+  el.className = 'base-row m-' + eff;
+  el.innerHTML = '<span class="dot"></span>';
+  const pos = document.createElement('span'); pos.className = 'pos'; pos.textContent = 'schowek';
+  // „auto” znaczy „zostaw typ wykryty automatem” — dopisujemy, czym jest w praktyce
+  const nazwaTypu = c.type === 'auto' ? 'auto (' + (TYPE_PL[eff] || eff) + ')' : (TYPE_PL[c.type] || c.type);
+  const typ = document.createElement('span'); typ.textContent = nazwaTypu + (c.from ? ' z ' + c.from : '');
   const val = document.createElement('span'); val.className = 'val';
-  val.textContent = r.n ? (r.t === 'off' ? 'ostry' : amtLabel(r.n)) : 'bez korekty (wykryty automatem)';
-  row.append(pos, typ, val);
-  btn.disabled = !r.n;
-  btn.title = r.n ? '' : 'Baza nie ma tu ręcznej korekty — nie ma czego przenosić';
-  box.hidden = false;
+  val.textContent = c.type === 'off' ? 'ostry' : amtLabel(c);
+  el.append(pos, typ, val);
+  const sel = state.sel.length;
+  $('basePaste').disabled = !sel;
+  $('basePaste').title = sel ? '' : 'Zaznacz węzeł po prawej, żeby wkleić';
+  $('basePaste').textContent = sel > 1 ? 'Wklej do ' + sel + ' węzłów' : 'Wklej ustawienie';
+  w.hidden = false;
 }
 function setBase(i){
   if (i == null) delete state.base[state.edit]; else state.base[state.edit] = i;
@@ -1469,11 +1519,13 @@ $('size').addEventListener('input', e => zoomTo(+e.target.value));
       if (!e.shiftKey && !e.target.closest('[data-vs]') && state.vsel.length) { state.vsel = []; state.sel = []; updatePanel(); schedule(); }
       return;
     }
+    const hitB = e.target.closest('[data-base-node]');
+    if (hitB) { const [x, y] = hitB.dataset.baseNode.split(',').map(Number); selectBaseNode({ x, y }, e.shiftKey); return; }
     const hit = e.target.closest('[data-node]');
     if (hit) { const [x, y] = hit.dataset.node.split(',').map(Number); selectNode({ x, y }, e.shiftKey); return; }
     // klik obok narożnika odznacza — bez tego zaznaczenie wisiało aż do Escape
     if (state.mode === 'font' && state.view === 'edit' && state.vmode === 'corners'
-        && !state.spacePan && !e.shiftKey && state.sel.length) { state.sel = []; updatePanel(); schedule(); }
+        && !state.spacePan && !e.shiftKey && (state.sel.length || state.selBase.length)) { state.sel = []; state.selBase = []; updatePanel(); schedule(); }
     let el = st;
     if (state.mode === 'font' && state.view === 'edit') {             // w edycji przesuwanie tylko ze spacją
       if (!state.spacePan) return;
@@ -1615,6 +1667,22 @@ $('baseApply').addEventListener('click', () => {
   setNodes((n) => { n.type = r.n.type; n.mode = r.n.mode; n.amt = r.n.amt; n.absorb = r.n.absorb; });
   toast('Przeniesiono wartości z bazy');
 });
+$('baseCopy').addEventListener('click', () => {
+  if (state.selBase.length !== 1) return;
+  const D = baseData(); if (!D) return;
+  const r = D.rows.find((q) => near(q.v, state.selBase[0]));
+  if (!r || !r.n) return;
+  const bg = D.bg;
+  state.clip = { type: r.n.type, mode: r.n.mode, amt: r.n.amt, absorb: r.n.absorb, eff: r.t,
+                 from: bg.unicode != null ? '„' + String.fromCodePoint(bg.unicode) + '”' : (bg.name || '#' + bg.index) };
+  updatePanel(); toast('Skopiowano ustawienie');
+});
+$('basePaste').addEventListener('click', () => {
+  const c = state.clip; if (!c || !state.sel.length) return;
+  setNodes((n) => { n.type = c.type; n.mode = c.mode; n.amt = c.amt; n.absorb = c.absorb; });
+  toast('Wklejono ustawienie');
+});
+$('clipClear').addEventListener('click', () => { state.clip = null; updatePanel(); });
 $('baseClear').addEventListener('click', () => setBase(null));
 $('gPrev').addEventListener('click', () => stepGlyph(-1));
 $('gNext').addEventListener('click', () => stepGlyph(1));
@@ -1654,7 +1722,7 @@ document.addEventListener('keydown', e => {
     if ((e.key === 'Backspace' || e.key === 'Delete') && state.vsel.length) { e.preventDefault(); vectorDelete(); return; }
     if (e.key === 'Escape') { state.vsel = []; state.sel = []; updatePanel(); schedule(); return; }
   }
-  if (e.key === 'Escape') { state.sel = []; updatePanel(); schedule(); }
+  if (e.key === 'Escape') { state.sel = []; state.selBase = []; updatePanel(); schedule(); }
   // strzałki lewo/prawo przeskakują narożniki; Tab zostaje wolny, żeby dało się wyjść klawiaturą
   else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); cycleNode(1); }
   else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); cycleNode(-1); }
