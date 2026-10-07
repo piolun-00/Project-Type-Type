@@ -174,7 +174,8 @@
         <summary>Eksport</summary>
 
       <div id="fontExport" hidden>
-        <input class="field" id="famName" type="text" aria-label="Nazwa rodziny nowego fontu" placeholder="Nazwa rodziny">
+        <div class="btn-row" style="margin-bottom:6px"><button class="btn" id="metaBtn">Metadane fontu…</button></div>
+        <p class="hint" id="metaSummary" style="margin-bottom:12px"></p>
         <div class="btn-row" style="margin-bottom:8px">
           <button class="btn primary" id="expFont">Pobierz font (.otf w .zip)</button>
           <button class="btn" id="expVF" title="Trzy osie zaokrąglenia: zakończenia, narożniki zewnętrzne i wewnętrzne. Zapisuje .ttf z ośmioma nazwanymi instancjami.">Pobierz font zmienny (.ttf)</button>
@@ -287,6 +288,41 @@
     </div>
     <div class="msg" id="dropMsg"></div>
     <p class="hint">Pliki zostają w twojej przeglądarce — nic nie jest wysyłane.</p>
+  </div>
+</div>
+<div class="modal" id="metaModal" hidden>
+  <div class="modal-bg" id="metaModalBg"></div>
+  <div class="modal-box wide" role="dialog" aria-modal="true" aria-labelledby="metaTitle">
+    <div class="modal-head">
+      <h2 id="metaTitle">Metadane fontu</h2>
+      <button class="iconbtn" id="metaClose" aria-label="Zamknij">×</button>
+    </div>
+    <p class="hint" style="margin:-4px 0 14px">Trafiają do wyeksportowanego pliku. Puste pole znaczy, że tej informacji nie będzie.</p>
+    <div class="meta-form">
+      <label class="meta-row"><span>Nazwa rodziny</span><input class="field" id="famName" type="text" placeholder="Nazwa rodziny"></label>
+      <div class="meta-pair">
+        <label class="meta-row"><span>Styl</span><input class="field" id="mSubfamily" type="text" placeholder="Regular"></label>
+        <label class="meta-row"><span>Wersja</span><input class="field" id="mVersion" type="text" placeholder="Version 1.000"></label>
+      </div>
+      <label class="meta-row"><span>Copyright</span><textarea class="field" id="mCopyright" rows="2" placeholder="© 2026 Imię Nazwisko"></textarea></label>
+      <label class="meta-row"><span>Znak towarowy</span><input class="field" id="mTrademark" type="text"></label>
+      <div class="meta-pair">
+        <label class="meta-row"><span>Autor kroju</span><input class="field" id="mDesigner" type="text"></label>
+        <label class="meta-row"><span>Strona autora</span><input class="field" id="mDesignerURL" type="text" placeholder="https://"></label>
+      </div>
+      <div class="meta-pair">
+        <label class="meta-row"><span>Producent</span><input class="field" id="mManufacturer" type="text"></label>
+        <label class="meta-row"><span>Strona producenta</span><input class="field" id="mManufacturerURL" type="text" placeholder="https://"></label>
+      </div>
+      <label class="meta-row"><span>Licencja</span><textarea class="field" id="mLicense" rows="3"></textarea></label>
+      <label class="meta-row"><span>Adres licencji</span><input class="field" id="mLicenseURL" type="text" placeholder="https://"></label>
+      <label class="meta-row"><span>Opis</span><textarea class="field" id="mDescription" rows="2"></textarea></label>
+    </div>
+    <div class="btn-row" style="margin-top:4px">
+      <button class="btn primary" id="metaSave">Zapisz</button>
+      <button class="linkbtn" id="metaReset">Przywróć z oryginału</button>
+    </div>
+    <p class="hint" id="metaWarn" style="margin-top:12px">Prawo do zmiany tych danych i do dystrybucji wynika z licencji oryginalnego fontu. Zmiana notki nie zmienia licencji.</p>
   </div>
 </div>
 <div class="modal" id="helpModal" hidden>

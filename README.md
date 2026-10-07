@@ -14,6 +14,8 @@ Cała praca odbywa się w przeglądarce. Pliki nie są nigdzie wysyłane, a stro
 - korekty pojedynczych narożników (typ, siła względna lub zamrożona, wtapianie, wymuszanie narożnika),
 - edytor konturu: przesuwanie węzłów i uchwytów, dodawanie i usuwanie węzłów, wygładzanie,
 - cofanie i ponawianie, autozapis w przeglądarce, zapis i wczytywanie ustawień (JSON),
+- edytor metadanych: nazwa rodziny, styl, wersja, copyright, znak towarowy, autor, producent, licencja i opis —
+  wypełniany danymi wczytanego pliku, do nadpisania przed eksportem,
 - eksport: font statyczny `.otf` (z kerningiem i funkcjami OpenType oryginału), font zmienny `.ttf` oraz SVG.
 
 Eksport fontu zmiennego (`src/vf.js`) daje `.ttf` z trzema osiami — `RNDE` zakończenia, `RNDO` narożniki zewnętrzne, `RNDI` wewnętrzne — i ośmioma nazwanymi instancjami.

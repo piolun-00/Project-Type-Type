@@ -9,6 +9,8 @@ const DEF = { end:0, out:0, in:0, kOut:1, kIn:0.6, tanMax:4, tension:1, angleMin
 const state = {
   p: Object.assign({}, DEF),
   strokeOv: null,
+  meta: {},         // metadane nadpisane ręcznie przez użytkownika
+  metaSrc: {},      // to, co niesie wczytany font — punkt wyjścia i „przywróć”
   mode: 'svg',            // 'font' | 'svg'
   source: 'demo',
   font: null, fontFile: '',
@@ -356,7 +358,7 @@ const LSKEY = () => 'type-type:' + state.hash;
 const LSKEY_OLD = () => 'szlifiernia:' + state.hash;
 function settingsObj(){
   return { app:'Type Type', version:1, source:{ name: state.mode === 'font' ? state.fontFile : (state.svgName || ''), hash: state.hash },
-    p: state.p, ovr: state.ovr, base: state.base, baseOn: state.baseOn, union: state.union, strokeOv: state.strokeOv, famName: $('famName').value, text: state.text, saved: Date.now() };
+    p: state.p, ovr: state.ovr, base: state.base, baseOn: state.baseOn, union: state.union, strokeOv: state.strokeOv, famName: $('famName').value, meta: state.meta, text: state.text, saved: Date.now() };
 }
 function autosave(){
   if (!state.hash || state.source === 'demo') return;
@@ -372,6 +374,8 @@ function applySettings(o, fromFile){
   if (typeof o.union === 'boolean') { state.union = o.union; $('union').checked = o.union; }
   state.strokeOv = o.strokeOv > 0 ? o.strokeOv : null; $('strokeOv').value = state.strokeOv || '';
   if (o.famName && state.mode === 'font') $('famName').value = o.famName;
+  state.meta = o.meta && typeof o.meta === 'object' ? o.meta : {};
+  metaSummary();
   if (typeof o.text === 'string' && o.text) state.text = o.text;
   cache.clear(); refreshDetection(); syncUI(); updatePanel(); schedule(); autosave();
   if (fromFile && o.source && o.source.hash && o.source.hash !== state.hash) setMsg(`Ustawienia pochodzą z innego pliku (${o.source.name || 'nieznany'}). Korekty mogą nie trafić w narożniki — sprawdź listę w panelu glifu.`);
@@ -750,6 +754,7 @@ function useFont(font, name, boot){
   state.ref = font.unitsPerEm; state.loadId = (state.loadId||0)+1; cache.clear(); refreshDetection(); syncUI();
   const fam = (font.names.fontFamily && (font.names.fontFamily.en || Object.values(font.names.fontFamily)[0])) || name.replace(/\.\w+$/,'');
   $('famName').value = fam + ' Rounded';
+  state.metaSrc = readSrcMeta(font, name); state.meta = {}; metaSummary();
   const info = $('fileInfo'); info.innerHTML = 'Teraz: <b></b> <span></span>';
   info.querySelector('b').textContent = fam; info.querySelector('span').textContent = `— ${font.glyphs.length} glifów` + (font.tables.fvar ? ', font zmienny (instancja domyślna)' : '');
   schedule();
@@ -836,6 +841,64 @@ function makeZip(files){
   e.setUint32(0,0x06054b50,true); e.setUint16(8,files.length,true); e.setUint16(10,files.length,true); e.setUint32(12,cdSize,true); e.setUint32(16,off,true);
   return new Blob([...parts, ...central, new Uint8Array(e.buffer)], { type: 'application/zip' });
 }
+/* ================= metadane fontu ================= */
+// Pola okna i odpowiadające im klucze w tabeli „name” opentype.js.
+const META = [['mSubfamily','fontSubfamily'], ['mVersion','version'], ['mCopyright','copyright'],
+  ['mTrademark','trademark'], ['mDesigner','designer'], ['mDesignerURL','designerURL'],
+  ['mManufacturer','manufacturer'], ['mManufacturerURL','manufacturerURL'],
+  ['mLicense','license'], ['mLicenseURL','licenseURL'], ['mDescription','description']];
+// Wartość do zapisania w pliku: ręczna, jeśli jest, inaczej oryginalna.
+// Puste pole znaczy „nie zapisuj tego wpisu”, dlatego pusty łańcuch idzie jako undefined.
+function metaVal(k){
+  const v = k in state.meta ? state.meta[k] : state.metaSrc[k];
+  const t = v == null ? '' : String(v).trim();
+  return t || undefined;
+}
+function readSrcMeta(font, name){
+  const nm = (k) => font.names[k] && (font.names[k].en || Object.values(font.names[k])[0]) || '';
+  const m = {};
+  for (const [, key] of META) m[key] = nm(key);
+  m.fullName = nm('fullName') || name;
+  // nazwa, którą aplikacja wstawia po wczytaniu — „przywróć” wraca właśnie do niej
+  m.famDefault = (nm('fontFamily') || name.replace(/\.\w+$/, '')) + ' Rounded';
+  // domyślny opis mówi, skąd to się wzięło — ale da się go nadpisać jak każdy inny
+  m.description = `Zmodyfikowano w Type Type na bazie: ${m.fullName}.`;
+  return m;
+}
+function metaSummary(){
+  const el = $('metaSummary'); if (!el) return;
+  if (state.mode !== 'font') { el.textContent = ''; return; }
+  const zmian = Object.keys(state.meta).filter(k => metaVal(k) !== (state.metaSrc[k] || undefined)).length;
+  const rodzina = ($('famName').value || '—').trim();
+  el.textContent = rodzina + ' ' + (metaVal('fontSubfamily') || 'Regular')
+    + (zmian ? ` · ${ile(zmian, 'pole zmienione', 'pola zmienione', 'pól zmienionych')}` : ' · dane z oryginału');
+}
+function fillMetaForm(zOryginalu){
+  for (const [id, key] of META) $(id).value = (!zOryginalu && key in state.meta ? state.meta[key] : state.metaSrc[key]) || '';
+}
+const metaModal = $('metaModal');
+const closeMeta = () => { metaModal.hidden = true; };
+$('metaBtn').addEventListener('click', () => {
+  fillMetaForm(false);
+  metaModal.hidden = false;
+  // bez przewijania — inaczej kursor w pierwszym polu zjeżdża nagłówkiem okna poza kadr
+  setTimeout(() => $('famName').focus({ preventScroll: true }), 0);
+});
+$('metaClose').addEventListener('click', closeMeta);
+$('metaModalBg').addEventListener('click', closeMeta);
+$('metaReset').addEventListener('click', () => {
+  state.meta = {};
+  if (state.metaSrc.famDefault) $('famName').value = state.metaSrc.famDefault;
+  fillMetaForm(true); metaSummary(); autosave();
+});
+$('metaSave').addEventListener('click', () => {
+  state.meta = {};
+  for (const [id, key] of META) state.meta[key] = $(id).value.trim();
+  closeMeta(); metaSummary(); autosave();
+  toast('Zapisano metadane');
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !metaModal.hidden) { e.stopPropagation(); closeMeta(); } }, true);
+
 async function exportFont(){
   const btn = $('expFont'); if (!state.font) return;
   if (state.source === 'boot') { setMsg('Domyślnego fontu nie da się stąd pobrać. Wgraj własny plik.', true); return; }
@@ -854,15 +917,17 @@ async function exportFont(){
       glyphs.push(new opentype.Glyph({ name: g.name || ('glyph'+i), unicode: g.unicode, unicodes: g.unicodes || (g.unicode!=null?[g.unicode]:[]), advanceWidth: g.advanceWidth || 0, path }));
       if (i % 60 === 59) { btn.textContent = `Zaokrąglam ${i+1}/${src.glyphs.length}…`; await new Promise(r=>setTimeout(r,0)); }
     }
-    const nm = (k) => src.names[k] && (src.names[k].en || Object.values(src.names[k])[0]) || undefined;
     const os2 = src.tables.os2 || {};
+    const styl = metaVal('fontSubfamily') || 'Regular';
     const out = new opentype.Font({
-      familyName: family, styleName: nm('fontSubfamily') || 'Regular', unitsPerEm: upm,
-      postScriptName: (slug(family).replace(/-/g,'') || 'Rounded') + '-' + (slug(nm('fontSubfamily') || 'Regular').replace(/-/g,'') || 'Regular'),
+      familyName: family, styleName: styl, unitsPerEm: upm,
+      postScriptName: (slug(family).replace(/-/g,'') || 'Rounded') + '-' + (slug(styl).replace(/-/g,'') || 'Regular'),
       ascender: src.ascender, descender: src.descender, glyphs,
-      copyright: nm('copyright'), trademark: nm('trademark'), designer: nm('designer'), designerURL: nm('designerURL'),
-      manufacturer: nm('manufacturer'), manufacturerURL: nm('manufacturerURL'), license: nm('license'), licenseURL: nm('licenseURL'),
-      version: nm('version'), description: `Zmodyfikowano w Type Type na bazie: ${nm('fullName') || state.fontFile}.`,
+      copyright: metaVal('copyright'), trademark: metaVal('trademark'),
+      designer: metaVal('designer'), designerURL: metaVal('designerURL'),
+      manufacturer: metaVal('manufacturer'), manufacturerURL: metaVal('manufacturerURL'),
+      license: metaVal('license'), licenseURL: metaVal('licenseURL'),
+      version: metaVal('version'), description: metaVal('description'),
       weightClass: os2.usWeightClass, widthClass: os2.usWidthClass, fsSelection: os2.fsSelection
     });
     let bin = new Uint8Array(out.toArrayBuffer());
@@ -870,7 +935,10 @@ async function exportFont(){
     if (state.srcTables && state.srcTables.cmap) layout.cmap = state.srcTables.cmap;  // numeracja glifów zachowana
     if (Object.keys(layout).length) { try { bin = RounderVF.injectTables(bin, layout); } catch(e) {} }
     const fname = slug(family) || 'Rounded';
-    const readme = `${family}\n\nŹródło: ${nm('fullName') || state.fontFile}\nUstawienia: ${paramsNote()}\n\nKopia notki licencyjnej oryginału:\n${nm('copyright') || '—'}\n${nm('license') || ''}\n\nPamiętaj: prawo do modyfikacji i dystrybucji wynika z licencji oryginalnego fontu.\n`;
+    const readme = `${family}\n\nŹródło: ${state.metaSrc.fullName || state.fontFile}\nUstawienia: ${paramsNote()}\n`
+      + `\nNotka licencyjna zapisana w pliku:\n${metaVal('copyright') || '—'}\n${metaVal('license') || ''}\n`
+      + `\nNotka licencyjna oryginału:\n${state.metaSrc.copyright || '—'}\n${state.metaSrc.license || ''}\n`
+      + `\nPamiętaj: prawo do modyfikacji i dystrybucji wynika z licencji oryginalnego fontu.\n`;
     await saveFile(fname + '.zip', makeZip([{ name: fname + '.otf', data: bin }, { name: 'README.txt', data: new TextEncoder().encode(readme) }]));
   } catch (e) {
     setMsg('Eksport fontu się nie udał: ' + (e && e.message || e), true);
@@ -905,7 +973,6 @@ async function exportVF(){
           return R.round(an, Object.assign({}, base, axis), state.ref, true, Object.assign({ end:1, out:1, in:1 }, base), M && M.res);
         } });
     }
-    const nm = (k) => src.names[k] && (src.names[k].en || Object.values(src.names[k])[0]) || undefined;
     let fallback = {};
     if (!state.srcTables) {
       // WOFF: cmap/OS2/post bierzemy z pomocniczego pliku zbudowanego przez opentype.js
@@ -920,10 +987,12 @@ async function exportVF(){
       glyphs, upm, ascender: src.ascender, descender: src.descender,
       axes: [{ tag:'RNDE', name:'Rounded Ends' }, { tag:'RNDO', name:'Rounded Outer' }, { tag:'RNDI', name:'Rounded Inner' }],
       instances: inst.map(x => ({ name: x[0], coords: x[1] })),
-      names: { 0: nm('copyright'), 1: family, 2: 'Regular', 3: `${ps};TypeType`, 4: family, 5: 'Version 1.000', 6: ps + '-Regular',
-        7: nm('trademark'), 8: nm('manufacturer'), 9: nm('designer'),
-        10: `Zmodyfikowano w Type Type na bazie: ${nm('fullName') || state.fontFile}. ${paramsNote()}`,
-        11: nm('manufacturerURL'), 12: nm('designerURL'), 13: nm('license'), 14: nm('licenseURL'), 25: ps },
+      names: { 0: metaVal('copyright'), 1: family, 2: 'Regular', 3: `${ps};TypeType`, 4: family,
+        5: metaVal('version') || 'Version 1.000', 6: ps + '-Regular',
+        7: metaVal('trademark'), 8: metaVal('manufacturer'), 9: metaVal('designer'),
+        10: [metaVal('description'), paramsNote()].filter(Boolean).join(' '),
+        11: metaVal('manufacturerURL'), 12: metaVal('designerURL'),
+        13: metaVal('license'), 14: metaVal('licenseURL'), 25: ps },
       srcTables: state.srcTables, srcIsVariable: !!src.tables.fvar,
       onProgress: async (n, t) => { btn.textContent = `Buduję mistrzów ${n}/${t}…`; await new Promise(r => setTimeout(r, 0)); }
     }, fallback));
@@ -1493,7 +1562,8 @@ function syncUI(){
   const locked = state.source === 'boot';
   $('expLocked').hidden = !locked; $('expNote').hidden = locked;
   $('expFont').disabled = locked; $('expVF').disabled = locked;
-  $('famName').disabled = locked;
+  $('metaBtn').disabled = locked;
+  metaSummary();
 
   $('viewSeg').style.display = state.mode === 'font' ? '' : 'none';
   $('viewSeg').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x.dataset.v === state.view));

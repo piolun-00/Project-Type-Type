@@ -257,6 +257,14 @@ details[open] summary{margin-bottom:14px}
 .modal .drop{margin-bottom:0}
 .modal .license{margin-top:12px}
 .modal .msg:empty{display:none}
+.modal-box.wide{width:min(560px,100%); max-height:calc(100vh - 56px); overflow:auto}
+/* Formularz metadanych: etykieta nad polem, pary krótkich pól obok siebie. */
+.meta-form .field{margin-bottom:0}
+.meta-row{display:grid; gap:4px; margin-bottom:10px}
+.meta-row > span{font-size:11.5px; color:var(--muted)}
+.meta-row textarea{resize:vertical; font:inherit; line-height:1.4}
+.meta-pair{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+@media (max-width:520px){ .meta-pair{grid-template-columns:1fr} }
 /* Lista skrótów: klawisz po lewej stałą szerokością, opis po prawej. */
 .keys{display:grid; grid-template-columns:auto 1fr; gap:7px 14px; margin:0; font-size:12.5px}
 .keys dt{font-family:var(--mono); font-size:11px; color:var(--ink); white-space:nowrap}
