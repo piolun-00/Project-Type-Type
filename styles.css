@@ -257,6 +257,12 @@ details[open] summary{margin-bottom:14px}
 .modal .drop{margin-bottom:0}
 .modal .license{margin-top:12px}
 .modal .msg:empty{display:none}
+/* Lista skrótów: klawisz po lewej stałą szerokością, opis po prawej. */
+.keys{display:grid; grid-template-columns:auto 1fr; gap:7px 14px; margin:0; font-size:12.5px}
+.keys dt{font-family:var(--mono); font-size:11px; color:var(--ink); white-space:nowrap}
+.keys dt em{font-style:normal}
+.keys dd{margin:0; color:var(--muted)}
+.modal .hint em{font-style:normal; font-family:var(--mono); font-size:11px}
 
 .picked{margin:0 0 10px; font-size:13px; color:var(--muted)}
 .picked b{color:var(--ink); font-weight:600}

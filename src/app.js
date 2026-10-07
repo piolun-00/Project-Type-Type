@@ -445,6 +445,14 @@ function renderPreview(rp){
 let raf = 0;
 function schedule(){ if (!raf) raf = requestAnimationFrame(()=>{ raf=0; render(); }); }
 
+// Polskie liczebniki: 1 węzeł, 2–4 węzły, 5+ węzłów (nastolatki idą z „wielu”).
+function ile(n, one, few, many){
+  const d = n % 10, s = n % 100;
+  if (n === 1) return n + ' ' + one;
+  if (d >= 2 && d <= 4 && !(s >= 12 && s <= 14)) return n + ' ' + few;
+  return n + ' ' + many;
+}
+
 function glyphItems(){
   const f = state.font, upm = f.unitsPerEm, items = [];
   const asc = f.ascender, desc = f.descender, lh = (asc - desc) * 1.12;
@@ -452,23 +460,6 @@ function glyphItems(){
   // a ogonki poniżej descendera. Bez zapasu górny rząd siatki i pierwsza linia tekstu są obcinane.
   const hd = f.tables.head || {};
   const yMax = isFinite(hd.yMax) ? hd.yMax : asc, yMin = isFinite(hd.yMin) ? hd.yMin : desc;
-  if (state.view === 'text') {
-    const lines = state.text.split('\n'); let y = asc, maxW = 0; const missing = new Set();
-    for (const line of lines) {
-      for (const ch of line) if (!/\s/.test(ch) && f.charToGlyphIndex(ch) === 0) missing.add(ch);
-      const gs = f.stringToGlyphs(line); let x = 0;
-      for (let i=0;i<gs.length;i++) {
-        const g = gs[i];
-        items.push({ g, x, y });
-        let adv = g.advanceWidth || 0;
-        if (i+1 < gs.length) { try { adv += f.getKerningValue(g, gs[i+1]) || 0; } catch(e){} }
-        x += adv;
-      }
-      maxW = Math.max(maxW, x); y += lh;
-    }
-    const pT = Math.max(0, yMax - asc), pB = Math.max(0, desc - yMin);
-    return { items, missing: [...missing], box: { x: 0, y: -pT, w: Math.max(maxW, upm*0.5), h: lh*(lines.length-1) + (asc - desc) + pT + pB } };
-  }
   // siatka glifów
   const max = Math.min(f.glyphs.length, 800);
   // kolumny liczone od bazowej wielkości komórki: powiększenie nie przestawia siatki, tylko ją skaluje
@@ -690,8 +681,8 @@ function render(){
   }
   if (state.mode === 'font') {
     const L = glyphItems(); box = L.box;
-    pxPerUnit = state.view === 'text' ? state.size / state.font.unitsPerEm : L.cellPx / L.cell;
-    const r = markR / pxPerUnit * (state.view === 'text' ? 1 : 0.8);
+    pxPerUnit = L.cellPx / L.cell;
+    const r = markR / pxPerUnit * 0.8;
     const grid = state.view === 'glyphs';
     if (grid) L.items.forEach((it, i) => {
       const c = i % L.cols, rr = Math.floor(i / L.cols);
@@ -705,8 +696,9 @@ function render(){
       if (showO) origs += `<path d="${R.toPathData(g.path.commands, it.x, it.y, 1, true, 1)}"/>`;
       addMarks(an, M, it.x, it.y, true, r);
     }
-    $('note').textContent = state.view === 'glyphs' ? (L.truncated ? `Pokazuję pierwsze 800 z ${state.font.glyphs.length} glifów` : `${state.font.glyphs.length} glifów`)
-      : (L.missing && L.missing.length ? `Tych znaków nie ma w foncie: ${L.missing.join(' ')}` : (state.font.tables.fvar ? 'Font zmienny — pracuję na instancji domyślnej' : ''));
+    const vf = state.font.tables.fvar ? ' — font zmienny, pracuję na instancji domyślnej' : '';
+    $('note').textContent = (L.truncated ? `Pokazuję pierwsze 800 z ${state.font.glyphs.length} glifów`
+                                         : `${state.font.glyphs.length} glifów`) + vf;
   } else {
     const b = state.box; const pad = Math.max(b.w, b.h) * 0.03;
     box = { x: b.x - pad, y: b.y - pad, w: b.w + 2*pad, h: b.h + 2*pad };
@@ -743,7 +735,7 @@ function loadDemo(){
   useShapes(shapes, 'demo', 'kształty demo');
 }
 function useShapes(shapes, source, name){
-  state.mode='svg'; state.source=source; state.shapes=shapes; state.font=null; state.view='text'; state.srcTables=null;
+  state.mode='svg'; state.source=source; state.shapes=shapes; state.font=null; state.view='glyphs'; state.srcTables=null;
   if (source === 'demo') state.hash = '';
   state.ovr = {}; state.sel = []; hist.undo.length = 0; hist.redo.length = 0;
   state.box = cmdsBox(shapes.map(s=>s.cmds)); state.ref = Math.sqrt(Math.max(1,state.box.w)*Math.max(1,state.box.h));
@@ -961,6 +953,20 @@ function selectNode(v, add){
   if (add) { const i = state.sel.findIndex(q => near(q, v)); if (i >= 0) state.sel.splice(i, 1); else state.sel.push(v); }
   else state.sel = [v];
   updatePanel(); schedule();
+}
+// Cmd/Ctrl + A: wszystkie węzły konturu albo wszystkie wykryte narożniki glifu.
+function selectAll(){
+  if (state.mode !== 'font' || state.view !== 'edit') return false;
+  if (state.vmode === 'contour') {
+    state.vsel = [];
+    curCons().forEach((C, ci) => C.nodes.forEach((_, ni) => state.vsel.push({ ci, ni, part: 'node' })));
+    syncSelFromVsel();
+  } else {
+    state.selBase = [];
+    state.sel = editInfo().joints.filter(j => j.c).map(j => ({ x: j.v.x, y: j.v.y }));
+  }
+  updatePanel(); schedule();
+  return true;
 }
 function selectBaseNode(v, add){
   state.sel = [];
@@ -1523,7 +1529,6 @@ $('strokeOv').addEventListener('input', e => {
 function zoomCfg(){
   if (state.mode === 'font' && state.view === 'edit') return { min: 50, max: 2000, step: 5, get: () => state.ezoom, set: v => state.ezoom = v, label: 'Powiększenie glifu w procentach, 100 = dopasowany' };
   if (state.mode === 'font' && state.view === 'glyphs') return { min: 30, max: 900, step: 2, get: () => state.gzoom, set: v => state.gzoom = v, label: 'Wielkość komórki glifu w pikselach' };
-  if (state.mode === 'font') return { min: 40, max: 1600, step: 2, get: () => state.size, set: v => state.size = v, label: 'Rozmiar stopnia w pikselach' };
   return { min: 20, max: 1500, step: 5, get: () => state.zoom, set: v => state.zoom = v, label: 'Powiększenie w procentach' };
 }
 // Przy podzielonym widoku każda połowa przewija się sama, ale obie trzymamy
@@ -1826,7 +1831,7 @@ function renderCtxBar(){
     const n = state.vsel.filter(s => s.part === 'node').length;
     if (!n) { ctx.hidden = true; return; }
     ctx.innerHTML = '<span class="tb-label"></span>';
-    ctx.firstChild.textContent = n === 1 ? '1 węzeł' : n + ' węzły';
+    ctx.firstChild.textContent = ile(n, 'węzeł', 'węzły', 'węzłów');
     for (const [id, ic, t] of [['cxSmooth','smooth','Wygładź'],['cxSharp','sharp','Wyprostuj'],['cxDel','del','Usuń węzeł']]) {
       const b = document.createElement('button');
       b.className = 'tb-btn'; b.id = id; b.title = t; b.setAttribute('aria-label', t);
@@ -1843,7 +1848,7 @@ function renderCtxBar(){
   const akt = sel[0].n ? sel[0].n.type : 'auto';
   const maEnd = sel.every(j => j.c.endLen > 0);
   ctx.innerHTML = '<span class="tb-label"></span>';
-  ctx.firstChild.textContent = sel.length === 1 ? '1 narożnik' : sel.length + ' narożniki';
+  ctx.firstChild.textContent = ile(sel.length, 'narożnik', 'narożniki', 'narożników');
   for (const [v, label] of TYPY) {
     if (v === 'end' && !maEnd) continue;
     const b = document.createElement('button');
@@ -1917,6 +1922,12 @@ function openFileModal(){
   setTimeout(() => $('drop').focus(), 0);
 }
 function closeFileModal(){ fileModal.hidden = true; }
+const helpModal = $('helpModal');
+const closeHelp = () => { helpModal.hidden = true; };
+$('helpBtn').addEventListener('click', () => { helpModal.hidden = false; setTimeout(() => $('helpClose').focus(), 0); });
+$('helpClose').addEventListener('click', closeHelp);
+$('helpModalBg').addEventListener('click', closeHelp);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !helpModal.hidden) { e.stopPropagation(); closeHelp(); } }, true);
 $('fileModalClose').addEventListener('click', closeFileModal);
 $('fileModalBg').addEventListener('click', closeFileModal);
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !fileModal.hidden) { e.stopPropagation(); closeFileModal(); } }, true);
@@ -2034,16 +2045,20 @@ function nodeGeom(gl, v){
 // Do schowka trafia ustawienie narożnika. Gdy nie ma przy nim ręcznej korekty,
 // bierzemy to, co wykrył automat — wklejone gdzie indziej ustawi tam ten sam typ
 // na pełnej sile, co bywa dokładnie tym, o co chodzi.
+// Przy wielu zaznaczonych kopiujemy z pierwszego — reszta i tak dostaje
+// to samo ustawienie przy wklejaniu.
 function copyNode(){
-  let r = null, src = null;
-  if (state.selBase.length === 1) {
+  let r = null, src = null, wielu = false;
+  if (state.selBase.length) {
+    wielu = state.selBase.length > 1;
     const D = baseData(); if (!D) return false;
     r = D.rows.find((q) => near(q.v, state.selBase[0]));
     // w trybie Kontur zaznaczony węzeł bazy często nie jest narożnikiem —
     // wtedy nie ma ustawień zaokrąglenia, ale samo położenie da się przenieść
     if (!r) r = { v: state.selBase[0], n: null, t: null };
     src = D.bg;
-  } else if (state.sel.length === 1) {
+  } else if (state.sel.length) {
+    wielu = state.sel.length > 1;
     const info = editInfo(), j = info.joints.find((q) => q.c && near(q.v, state.sel[0]));
     if (j) { r = { v: j.v, n: j.n || null, t: effType(j.n, j.c) }; src = editGlyph(); }
   }
@@ -2051,14 +2066,15 @@ function copyNode(){
   const geom = nodeGeom(src, r.v);
   if (r.t == null) {
     state.clip = Object.assign({ type: null, x: r.v.x, y: r.v.y, from: glyphLab(src) }, geom || {});
-    updatePanel(); toast('Skopiowano geometrię węzła');
+    updatePanel(); toast('Skopiowano geometrię węzła' + (wielu ? ' (z pierwszego zaznaczonego)' : ''));
     return true;
   }
   const n = r.n || { type: r.t, mode: 'rel', amt: 100, absorb: 'auto' };
   state.clip = Object.assign({ type: n.type === 'auto' ? r.t : n.type, mode: n.mode, amt: n.amt,
                                absorb: n.absorb, eff: r.t, x: r.v.x, y: r.v.y, from: glyphLab(src) }, geom || {});
   updatePanel();
-  toast('Skopiowano ustawienie i geometrię' + (r.n ? '' : ' (ustawienie wykryte automatem)'));
+  toast('Skopiowano ustawienie i geometrię' + (r.n ? '' : ' (ustawienie wykryte automatem)')
+        + (wielu ? ' — z pierwszego zaznaczonego' : ''));
   return true;
 }
 // Robi z zaznaczonego węzła kopię tego ze schowka: to samo położenie i te same
@@ -2154,9 +2170,10 @@ document.addEventListener('keydown', e => {
   const mod = e.metaKey || e.ctrlKey, k = e.key.toLowerCase();
   if (mod && k === 'z' && !typing) { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if (mod && k === 'y' && !typing) { e.preventDefault(); redo(); return; }
+  if (mod && k === 'a' && !typing && selectAll()) { e.preventDefault(); return; }
   // Cmd/Ctrl + C kopiuje ustawienie zaznaczonego narożnika, Cmd/Ctrl + V je wkleja
   if (mod && k === 'c' && !typing && state.mode === 'font' && state.view === 'edit'
-      && (state.selBase.length === 1 || state.sel.length === 1)) { if (copyNode()) { e.preventDefault(); return; } }
+      && (state.selBase.length || state.sel.length)) { if (copyNode()) { e.preventDefault(); return; } }
   if (mod && e.shiftKey && k === 'v' && !typing && state.mode === 'font' && state.view === 'edit'
       && state.sel.length === 1) { if (pasteGeom()) { e.preventDefault(); return; } }
   if (mod && !e.shiftKey && k === 'v' && !typing && state.mode === 'font' && state.view === 'edit'

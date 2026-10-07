@@ -31,12 +31,14 @@
   <symbol id="ic-reset" viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.6-3.7" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M13.2 1.9v3.1h-3.1" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="ic-glyphs" viewBox="0 0 16 16"><rect x="2" y="2" width="5" height="5" rx="1" fill="currentColor"/><rect x="9" y="2" width="5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="2" y="9" width="5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="9" width="5" height="5" rx="1" fill="currentColor"/></symbol>
   <symbol id="ic-text" viewBox="0 0 16 16"><path d="M2.6 3.2h10.8M8 3.6v9.2M5.9 12.9h4.2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+  <symbol id="ic-help" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6.3 6.2a1.75 1.75 0 1 1 2.3 1.66c-.4.14-.6.5-.6.92v.3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="8" cy="11.6" r=".75" fill="currentColor"/></symbol>
   <symbol id="ic-del" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.4 8h5.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
 </svg>
 <div class="app">
   <aside class="rail">
     <div class="brand">
       <h1>Type Type</h1>
+      <button class="tb-btn" id="helpBtn" title="Skróty klawiszowe" aria-label="Skróty klawiszowe"><svg class="ic"><use href="#ic-help"/></svg></button>
       <button class="tb-btn" id="railToggle" title="Schowaj panel" aria-label="Schowaj panel"><svg class="ic"><use href="#ic-panel"/></svg></button>
     </div>
     <div class="view-row">
@@ -175,7 +177,7 @@
         <input class="field" id="famName" type="text" aria-label="Nazwa rodziny nowego fontu" placeholder="Nazwa rodziny">
         <div class="btn-row" style="margin-bottom:8px">
           <button class="btn primary" id="expFont">Pobierz font (.otf w .zip)</button>
-          <button class="btn" id="expVF" hidden>Pobierz font zmienny (.ttf)</button>
+          <button class="btn" id="expVF" title="Trzy osie zaokrąglenia: zakończenia, narożniki zewnętrzne i wewnętrzne. Zapisuje .ttf z ośmioma nazwanymi instancjami.">Pobierz font zmienny (.ttf)</button>
         </div>
         <p class="hint" id="expLocked" hidden style="margin-bottom:12px">Podgląd startuje na ABC Areal, żeby było na czym pracować — ale tego fontu nie da się stąd pobrać. Wgraj własny plik, a eksport się odblokuje.</p>
         <p class="hint" id="expNote" style="margin-bottom:10px" title="Zapisuje dokładnie to, co widzisz, razem z korektami. Kerning i funkcje OpenType są przenoszone z oryginału.">Zapisuje to, co widzisz. Zmień nazwę rodziny, jeśli wymaga tego licencja.</p>
@@ -285,6 +287,33 @@
     </div>
     <div class="msg" id="dropMsg"></div>
     <p class="hint">Pliki zostają w twojej przeglądarce — nic nie jest wysyłane.</p>
+  </div>
+</div>
+<div class="modal" id="helpModal" hidden>
+  <div class="modal-bg" id="helpModalBg"></div>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <div class="modal-head">
+      <h2 id="helpTitle">Skróty klawiszowe</h2>
+      <button class="iconbtn" id="helpClose" aria-label="Zamknij">×</button>
+    </div>
+    <dl class="keys">
+      <dt>V</dt><dd>strzałka — zaznaczanie</dd>
+      <dt>P</dt><dd>pióro — klik na linii dodaje węzeł</dd>
+      <dt><em>Alt</em> + klik</dt><dd>piórem: usuwa węzeł</dd>
+      <dt>przeciągnięcie</dt><dd>ramka zaznaczenia po pustym polu</dd>
+      <dt><em>Shift</em> + klik</dt><dd>dokłada do zaznaczenia (też przy ramce)</dd>
+      <dt><em>Cmd</em> A</dt><dd>zaznacza wszystko w glifie</dd>
+      <dt><em>Esc</em></dt><dd>odznacza</dd>
+      <dt>spacja + przeciągnięcie</dt><dd>przewijanie kadru</dd>
+      <dt><em>Cmd</em> + kółko</dt><dd>powiększenie wokół kursora</dd>
+      <dt>+ − 0</dt><dd>powiększ, pomniejsz, dopasuj</dd>
+      <dt>strzałki</dt><dd>przesuwają węzeł (kontur) albo skaczą po narożnikach; z <em>Shift</em> ×10</dd>
+      <dt><em>Backspace</em></dt><dd>usuwa zaznaczone węzły</dd>
+      <dt><em>Cmd</em> C / V</dt><dd>kopiuje i wkleja ustawienie narożnika</dd>
+      <dt><em>Cmd</em> <em>Shift</em> V</dt><dd>wkleja geometrię węzła z bazy</dd>
+      <dt><em>Cmd</em> Z</dt><dd>cofa; z <em>Shift</em> ponawia</dd>
+    </dl>
+    <p class="hint">Na Windowsie i Linuksie zamiast <em>Cmd</em> jest <em>Ctrl</em>.</p>
   </div>
 </div>
 <span hidden><input type="checkbox" id="showC" checked><input type="checkbox" id="showO"><input type="checkbox" id="showG" checked><span id="showGWrap"></span></span>
